@@ -1,21 +1,106 @@
-import { app, Menu, Tray, nativeImage } from 'electron'
-import { join } from 'node:path'
+import { app } from 'electron'
+import type { HelperMessage } from '../shared/ipc-types'
+import { HelperSupervisor } from './helper-supervisor'
+import { createLogger } from './logger'
+import { PreviewWindow } from './preview-window'
+import { handlePeekProtocol, registerPeekScheme } from './protocol'
+import { getSettings } from './settings'
+import { AppTray } from './tray'
 
-let tray: Tray | null = null
+const log = createLogger('main')
 
-function trayIconPath(): string {
-  return app.isPackaged ? join(process.resourcesPath, 'tray.png') : join(app.getAppPath(), 'resources', 'tray.png')
-}
+process.on('uncaughtException', (err) => log.error('uncaught exception', err))
+process.on('unhandledRejection', (err) => log.error('unhandled rejection', err))
+
+registerPeekScheme()
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.whenReady().then(() => {
-    tray = new Tray(nativeImage.createFromPath(trayIconPath()))
-    tray.setToolTip('Peekaboo')
-    tray.setContextMenu(Menu.buildFromTemplate([{ label: '종료', click: () => app.quit() }]))
-  })
-
+  app.whenReady().then(start)
   // 창이 모두 닫혀도 트레이에 상주
   app.on('window-all-closed', () => {})
+}
+
+function start(): void {
+  log.info(`Peekaboo ${app.getVersion()} starting (packaged=${app.isPackaged})`)
+
+  const helper = new HelperSupervisor()
+  const preview = new PreviewWindow(() => getSettings().keepWarmSeconds)
+  handlePeekProtocol((path) => preview.isAllowedPath(path))
+
+  const tray = new AppTray((enabled) => {
+    helper.send({ v: 1, type: 'config', enabled })
+    if (!enabled) closePreview()
+  })
+  helper.on('status', (s) => tray.setStatus(s))
+
+  let nextRequestId = 1
+  /** getSelection 요청 id → 키 수신 시각 */
+  const pendingOpen = new Map<number, number>()
+
+  function openPreview(): void {
+    const id = nextRequestId++
+    pendingOpen.set(id, performance.now())
+    helper.send({ v: 1, type: 'getSelection', id })
+  }
+
+  function closePreview(): void {
+    pendingOpen.clear()
+    if (!preview.isOpen) return
+    preview.hide()
+    helper.send({ v: 1, type: 'state', previewOpen: false })
+  }
+
+  function showSelection(paths: string[], focused: string | null, t0: number): void {
+    const path = focused && paths.includes(focused) ? focused : (paths[0] ?? focused)
+    if (!path) return // 선택 없음
+    // Esc 삼키기와 선택 변경 감시가 이 상태에 의존하므로 창을 띄우기 전에 알린다
+    if (!preview.isOpen) helper.send({ v: 1, type: 'state', previewOpen: true })
+    void preview.show({ path, selectionCount: paths.length, t0 })
+  }
+
+  helper.on('message', (msg: HelperMessage) => {
+    switch (msg.type) {
+      case 'ready':
+        // 헬퍼가 (재)시작됨 → 현재 설정/상태를 다시 알린다
+        helper.send({ v: 1, type: 'config', enabled: getSettings().hotkeyEnabled })
+        helper.send({ v: 1, type: 'state', previewOpen: preview.isOpen })
+        break
+      case 'key':
+        if (msg.key === 'space') preview.isOpen ? closePreview() : openPreview()
+        else if (msg.key === 'esc' || msg.key === 'enter') closePreview()
+        // 방향키: 탐색기가 선택을 옮기고, 헬퍼가 selection 알림을 보낸다
+        break
+      case 'selection':
+        if (msg.id !== undefined) {
+          const t0 = pendingOpen.get(msg.id)
+          if (t0 === undefined) return // 이미 닫힘/취소됨
+          pendingOpen.delete(msg.id)
+          showSelection(msg.paths, msg.focused, t0)
+        } else if (preview.isOpen) {
+          showSelection(msg.paths, msg.focused, performance.now())
+        }
+        break
+      case 'error':
+        if (msg.id !== undefined) pendingOpen.delete(msg.id)
+        break
+    }
+  })
+
+  helper.start()
+
+  // 개발 전용: 헬퍼/키 입력 없이 미리보기 창만 확인한다.
+  //   PEEKABOO_PREVIEW=<파일 경로> [PEEKABOO_CAPTURE=<png 경로>] npx electron .
+  const devPreview = process.env['PEEKABOO_PREVIEW']
+  if (!app.isPackaged && devPreview) {
+    showSelection([devPreview], devPreview, performance.now())
+    const capture = process.env['PEEKABOO_CAPTURE']
+    if (capture) setTimeout(() => void preview.capture(capture), 2500)
+  }
+
+  app.on('before-quit', () => {
+    helper.stop()
+    preview.destroy()
+  })
 }

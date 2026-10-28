@@ -3,7 +3,7 @@
 Windows 탐색기에서 파일을 선택하고 **스페이스바**를 누르면 바로 미리보기 창이 뜨는 상주 프로그램입니다.
 macOS Quick Look 과 비슷한 사용감을 목표로, 처음부터 새로 작성했습니다.
 
-> 🚧 개발 중 (v0.1) — 아래 지원 포맷 중 체크된 것만 동작합니다.
+> 🚧 개발 중 (v0.1, MVP) — 아래 지원 포맷 중 체크된 것만 동작합니다.
 
 <!-- 스크린샷 자리 -->
 <p align="center"><em>(스크린샷 준비 중)</em></p>
@@ -22,9 +22,9 @@ macOS Quick Look 과 비슷한 사용감을 목표로, 처음부터 새로 작�
 
 ## 지원 포맷
 
-- [ ] 이미지: jpg, png, gif, webp, svg
-- [ ] 텍스트 / 소스 코드 (구문 강조)
-- [ ] Markdown
+- [x] 이미지: jpg, png, gif, webp, svg, bmp, ico, avif
+- [x] 텍스트 / 소스 코드 (구문 강조, UTF-8/UTF-16/CP949 자동 감지, 512KB까지)
+- [x] Markdown (HTML 태그는 표시하지 않음, 상대 경로 이미지는 대체 텍스트로 표시)
 - [ ] PDF
 - [ ] 영상 / 오디오
 - [ ] 폴더 (파일 목록)
@@ -54,11 +54,24 @@ npm run dev            # 개발 모드 실행
 npm run dist           # 설치 파일 → release/
 ```
 
-헬퍼만 단독으로 시험하려면:
+### 단계별 확인 방법
+
+헬퍼만 단독으로 시험하기 (Electron 없이):
 
 ```powershell
 npm run helper:console
+# 탐색기에서 파일 선택 → Space: 선택 경로 출력 / 방향키: 바뀐 선택 출력 / Esc: 닫힘
+helper\publish\peekaboo-helper.exe --list   # 열린 탐색기 창·바탕화면의 선택을 한 번 출력
 ```
+
+미리보기 창만 시험하기 (키 입력 없이, 개발 모드 전용):
+
+```powershell
+npm run build
+$env:PEEKABOO_PREVIEW = "C:\work\notes.md"; npx electron .
+```
+
+로그(`%APPDATA%\Peekaboo\logs\peekaboo.log`)에 `shown in …ms`, `rendered … in …ms since key` 로 표시 지연이 기록됩니다.
 
 ## 구조
 
