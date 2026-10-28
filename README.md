@@ -28,7 +28,7 @@ macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현�
 - [x] PDF (pdf.js, 보이는 페이지만 렌더)
 - [x] 영상 / 오디오 (mp4·webm·mov·mkv, mp3·m4a·wav·ogg·opus·flac — Chromium 이 재생 가능한 코덱)
 - [x] 폴더 (파일 목록, 최대 500개)
-- [ ] zip 목록
+- [x] zip 목록 (zip·jar·apk·vsix·nupkg·whl·epub 등, 압축 해제 없이 목록만, ZIP64·CP949 파일명)
 - [x] Word / Excel / PowerPoint (docx·xlsx·pptx, 구형 doc·xls·ppt·rtf)
   — Windows 에 등록된 미리보기 핸들러(Office 설치 시 원본과 같은 모양)를 우선 사용하고,
   없으면 자체 간이 미리보기(docx 본문·표, xlsx 시트 표, pptx 슬라이드 텍스트·이미지)로 표시

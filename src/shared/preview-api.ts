@@ -43,6 +43,34 @@ export interface DirEntry {
   mtimeMs: number
 }
 
+export interface ArchiveEntry {
+  /** 압축 파일 안의 경로("/" 구분). 디렉터리 항목은 끝에 "/" 가 붙어 있다. */
+  path: string
+  isDirectory: boolean
+  /** 원본(압축 해제 후) 크기 */
+  size: number
+  compressedSize: number
+  /** 수정 시각(ms). 알 수 없으면 0 */
+  mtimeMs: number
+  encrypted: boolean
+  /** zip 압축 방식 번호(0=저장, 8=deflate ...) */
+  method: number
+}
+
+export interface ArchiveListing {
+  entries: ArchiveEntry[]
+  /** 중앙 디렉터리(EOCD)에 기록된 전체 항목 수 */
+  totalEntries: number
+  /** 항목이 max 를 넘어 entries 가 일부뿐이면 true */
+  truncated: boolean
+  /** entries 에 담긴 파일의 원본 크기 합(truncated 면 일부만 합산) */
+  totalSize: number
+  compressedSize: number
+  /** 하나라도 암호화돼 있으면 true */
+  encrypted: boolean
+  comment?: string
+}
+
 export interface PeekabooApi {
   /** 새 파일 표시 요청 */
   onShow(cb: (payload: ShowPayload) => void): void
@@ -54,6 +82,8 @@ export interface PeekabooApi {
   readText(path: string, maxBytes: number): Promise<TextResult>
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */
   listDir(path: string, max: number): Promise<{ entries: DirEntry[]; truncated: boolean }>
+  /** 현재 표시 중인 zip 계열 압축 파일의 항목 목록(압축 해제 없이 중앙 디렉터리만 읽는다) */
+  listArchive(path: string, max: number): Promise<ArchiveListing>
   /** <img>/<video> 등에 쓸 수 있는 peek:// URL. 현재 표시 중인 파일만 서빙된다. */
   fileUrl(path: string): string
   /** 렌더 완료 신호(첫 표시 지연 측정용) */

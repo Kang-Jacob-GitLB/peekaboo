@@ -94,7 +94,7 @@ async function show(payload: ShowPayload): Promise<void> {
     container.replaceChildren()
     const { renderFallback } = await import('./plugins/fallback')
     if (stale()) return
-    renderFallback(container, file, `미리보기를 만들지 못했습니다: ${err instanceof Error ? err.message : String(err)}`)
+    renderFallback(container, file, `미리보기를 만들지 못했습니다: ${errorText(err)}`)
   } finally {
     clearTimeout(timer)
     loader?.remove()
@@ -133,3 +133,9 @@ host.onShowError((e) => {
 })
 
 host.onHide(() => teardown())
+
+/** ipcRenderer.invoke 가 붙이는 "Error invoking remote method '…': Error: " 접두어를 떼고 사람이 읽을 메시지만 */
+function errorText(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, '')
+}

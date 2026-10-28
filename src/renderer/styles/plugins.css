@@ -131,6 +131,22 @@
 .dir-size { text-align: right; }
 .dir-empty { padding: 40px; text-align: center; color: var(--fg-dim); font-style: italic; }
 
+/* archive (zip 계열 목록) — 폴더 보기의 .dir-size/.dir-date/.dir-ext/.dir-empty 를 재사용한다 */
+.archive-view { display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+.arc-scroll { flex: 1; min-height: 0; overflow: auto; }
+.arc-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 90px 150px 28px; align-items: center;
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+}
+.arc-row > div { padding: 0 10px; white-space: nowrap; }
+.arc-row > .arc-label { display: flex; align-items: center; gap: 6px; padding-right: 0; min-width: 0; }
+.arc-dir { cursor: default; }
+.arc-dir:hover { background: var(--code-bg); }
+.arc-twisty { flex: none; width: 12px; color: var(--fg-dim); font-size: 10px; text-align: center; }
+.arc-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; }
+.arc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arc-lock { display: flex; align-items: center; color: var(--fg-dim); }
+
 /* ---------- Windows 미리보기 핸들러 ---------- */
 /* 핸들러 창이 이 영역 위에 네이티브 자식 창으로 겹쳐진다. 그 전까지만 안내가 보인다. */
 .content.native-host { overflow: hidden; }
