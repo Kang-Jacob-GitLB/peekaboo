@@ -6,6 +6,7 @@ export const Channels = {
   hide: 'preview:hide',
   readText: 'preview:read-text',
   listDir: 'preview:list-dir',
+  listArchive: 'preview:list-archive',
   rendered: 'preview:rendered',
   nativeOpen: 'preview:native-open',
   nativeResize: 'preview:native-resize',
