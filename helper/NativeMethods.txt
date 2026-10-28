@@ -84,3 +84,5 @@ FillRect
 CreateSolidBrush
 DeleteObject
 WM_ERASEBKGND
+CoGetClassObject
+IClassFactory

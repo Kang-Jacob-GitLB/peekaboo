@@ -21,6 +21,9 @@ internal enum NativePreviewStatus { Shown, Unavailable, Failed }
 /// - 핸들러를 미리보기 창에 직접 붙이지 않고, 헬퍼가 만든 컨테이너 자식 창에 (0,0,w,h)로 붙인다.
 ///   실측: Word 는 SetWindow 의 RECT 위치를 따르지만 PowerPoint 는 위치를 무시하고 (0,0)에 그려 헤더를 덮었다.
 ///   SetWindow/SetRect 문서는 좌표계를 명시하지 않으므로, 원점을 맞춰 두면 핸들러별 해석 차이가 사라진다.
+/// - 핸들러 class factory 를 캐시하고 LockServer(true) 로 서버 프로세스(WINWORD -Embedding 등)를 살려 둬
+///   두 번째 미리보기부터 기동 지연을 없앤다. 상주 메모리를 줄이려고 일정 시간 안 쓰면 놓아준다.
+///   (기법 참고: QuickLook OfficeViewer PreviewHandlerHost, QL-Win/QuickLook@2ec219a, GPL-3.0 — 코드는 새로 작성)
 /// </summary>
 internal sealed class NativePreviewHost : IDisposable
 {
@@ -41,6 +44,14 @@ internal sealed class NativePreviewHost : IDisposable
     private HBRUSH _background;
     private WNDPROC? _wndProc; // GC 수거 방지
     private const string ContainerClass = "PeekabooPreviewContainer";
+
+    /// <summary>이 시간 동안 미리보기를 안 쓰면 캐시한 factory 를 풀어 Office 서버 프로세스가 종료되게 한다.</summary>
+    private const int FactoryIdleMs = 10 * 60 * 1000;
+    /// <summary>RPC_E_CANTCALLOUT_ININPUTSYNCCALL — 입력 동기 호출 중 SetRect. 다음 크기 변경 때 맞춰지므로 무시.</summary>
+    private const int RpcCantCallOutInInputSyncCall = unchecked((int)0x8001010D);
+    private readonly Dictionary<Guid, IClassFactory> _factories = new(); // STA 전용
+    private long _lastUse;           // STA 전용, Environment.TickCount64
+    private bool _releaseScheduled;  // STA 전용
 
     public NativePreviewHost(Action<int, NativePreviewStatus, string?> reply) => _reply = reply;
 
@@ -66,6 +77,7 @@ internal sealed class NativePreviewHost : IDisposable
             var inner = Origin(rect);
             _handler.SetRect(in inner);
         }
+        catch (COMException e) when (e.HResult == RpcCantCallOutInInputSyncCall) { }
         catch (Exception e) { Log.Warn($"preview SetRect failed: {e.Message}"); }
     });
 
@@ -121,11 +133,67 @@ internal sealed class NativePreviewHost : IDisposable
         return Guid.TryParse(buf[..((int)len - 1)], out var clsid) ? clsid : null;
     }
 
-    private static unsafe IPreviewHandler Create(Guid clsid)
+    /// <summary>캐시한 factory 로 만든다. 서버 프로세스가 죽어 실패하면 factory 를 새로 얻어 한 번 더 시도.</summary>
+    private unsafe IPreviewHandler Create(Guid clsid)
     {
+        _lastUse = Environment.TickCount64;
+        ScheduleFactoryRelease();
         var iid = typeof(IPreviewHandler).GUID;
-        PInvoke.CoCreateInstance(&clsid, null, CLSCTX.CLSCTX_LOCAL_SERVER, &iid, out var obj).ThrowOnFailure();
-        return (IPreviewHandler)obj;
+        for (int attempt = 0; ; attempt++)
+        {
+            var factory = GetFactory(clsid);
+            try
+            {
+                factory.CreateInstance(null, &iid, out var ppv);
+                try { return (IPreviewHandler)Marshal.GetObjectForIUnknown((nint)ppv); }
+                finally { Marshal.Release((nint)ppv); }
+            }
+            catch (COMException e) when (attempt == 0)
+            {
+                Log.Warn($"cached factory for {clsid} failed (0x{e.HResult:X8}), retrying");
+                DropFactory(clsid);
+            }
+        }
+    }
+
+    private unsafe IClassFactory GetFactory(Guid clsid)
+    {
+        if (_factories.TryGetValue(clsid, out var cached)) return cached;
+        var iid = typeof(IClassFactory).GUID;
+        PInvoke.CoGetClassObject(&clsid, CLSCTX.CLSCTX_LOCAL_SERVER, null, &iid, out var obj).ThrowOnFailure();
+        var factory = (IClassFactory)obj;
+        try { factory.LockServer(true); }
+        catch (COMException e) { Log.Warn($"LockServer failed for {clsid}: 0x{e.HResult:X8}"); }
+        _factories[clsid] = factory;
+        return factory;
+    }
+
+    private void DropFactory(Guid clsid)
+    {
+        if (!_factories.Remove(clsid, out var factory)) return;
+        try { factory.LockServer(false); } catch (COMException) { } // 서버가 이미 죽었을 수 있다
+        Marshal.FinalReleaseComObject(factory);
+    }
+
+    private void ScheduleFactoryRelease()
+    {
+        if (_releaseScheduled) return;
+        _releaseScheduled = true;
+        _sta.PostDelayed(FactoryIdleMs, ReleaseIdleFactories);
+    }
+
+    private void ReleaseIdleFactories()
+    {
+        _releaseScheduled = false;
+        long idle = Environment.TickCount64 - _lastUse;
+        if (_handler is not null || idle < FactoryIdleMs)
+        {
+            _releaseScheduled = true;
+            _sta.PostDelayed((int)Math.Max(1000, FactoryIdleMs - idle), ReleaseIdleFactories);
+            return;
+        }
+        if (_factories.Count > 0) Log.Info($"releasing {_factories.Count} idle preview handler factories");
+        foreach (var clsid in _factories.Keys.ToList()) DropFactory(clsid);
     }
 
     /// <summary>문서 권고 순서: 스트림(가장 안전) → 항목 → 파일 경로. 미리보기는 파일을 잠그지 않아야 하므로 공유 읽기.</summary>
@@ -237,7 +305,11 @@ internal sealed class NativePreviewHost : IDisposable
     public void Dispose()
     {
         _latestId = 0;
-        _sta.Post(Unload);
+        _sta.Post(() =>
+        {
+            Unload();
+            foreach (var clsid in _factories.Keys.ToList()) DropFactory(clsid);
+        });
         _sta.Dispose();
     }
 }
