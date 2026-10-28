@@ -41,12 +41,22 @@ internal sealed class HelperCore : IDisposable
     {
         _sink = sink;
         _watcher = new SelectionWatcher(OnSelectionChangedEvent);
-        _hook = new KeyboardHook(OnKey);
+        _hook = new KeyboardHook(OnKey, FocusInspector.PrimeForWindow);
     }
 
     public bool PreviewOpen => _previewOpen;
 
-    public void Start() => _hook.Start();
+    public void Start()
+    {
+        _hook.Start();
+        FocusInspector.PrimeForWindow(PInvoke.GetForegroundWindow());
+        // 첫 Space 의 지연을 줄이려고 COM 객체 생성·JIT 를 미리 한 번 거친다(실측: 첫 조회 100~200ms → 이후 ~10ms)
+        _sta.Post(() =>
+        {
+            try { _shell.EnumerateAll(); }
+            catch (Exception e) { Log.Warn($"warmup failed: {e.Message}"); }
+        });
+    }
 
     public void SetEnabled(bool enabled) => _enabled = enabled;
 
@@ -88,6 +98,12 @@ internal sealed class HelperCore : IDisposable
             Log.Warn($"selection query failed: {e.Code} {e.Message}");
             _sink.Error(id, e.Code, e.Message);
         }
+        catch (Exception e)
+        {
+            // 응답이 없으면 호스트가 열기 대기 상태로 남으므로 반드시 오류로라도 답한다
+            Log.Error($"selection query crashed: {e}");
+            _sink.Error(id, ErrorCodes.Internal, e.Message);
+        }
     });
 
     /// <summary>STA 스레드에서 응답 → 헬퍼 생존 확인이 STA 정지까지 잡아낸다.</summary>
@@ -105,11 +121,18 @@ internal sealed class HelperCore : IDisposable
 
         if (!_enabled || ModifierHeld(key.Value)) return false;
 
-        var target = FocusInspector.GetFileViewTarget();
-        if (target is null) return false;
-        if (FocusInspector.IsElevated(target.ProcessId)) return false; // 선택을 읽을 수 없으니 탐색기에 맡긴다
-
         bool open = _previewOpen;
+        var target = FocusInspector.GetFileViewTarget();
+        if (target is null)
+        {
+            // 미리보기가 열린 채 포커스가 탭 표시줄·검색창 등으로 옮겨 갔을 때도 Esc 로 닫을 수 있게 한다.
+            // 그 입력란의 Esc 동작을 막지 않도록 키는 통과시킨다.
+            if (open && key.Value == KeyName.Esc && FocusInspector.IsShellForeground())
+                _sink.Key(KeyName.Esc, false);
+            return false;
+        }
+        if (FocusInspector.IsElevatedCached(target.ProcessId)) return false; // 선택을 읽을 수 없으니 탐색기에 맡긴다
+
         bool consume, emit;
         switch (key.Value)
         {

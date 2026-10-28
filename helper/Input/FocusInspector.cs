@@ -15,6 +15,7 @@ internal sealed record FileViewTarget(SelectionSource Source, HWND TopLevel, HWN
 internal static class FocusInspector
 {
     private static readonly Dictionary<uint, bool> ElevationCache = new();
+    private static readonly HashSet<uint> ElevationPending = new();
 
     /// <summary>
     /// 훅 콜백에서 호출되므로 COM 없이 가벼운 Win32 호출만 사용한다.
@@ -26,11 +27,7 @@ internal static class FocusInspector
         var fg = PInvoke.GetForegroundWindow();
         if (fg.IsNull) return null;
 
-        var fgClass = ClassOf(fg);
-        SelectionSource source;
-        if (fgClass == "CabinetWClass") source = SelectionSource.Explorer;
-        else if (fgClass is "Progman" or "WorkerW") source = SelectionSource.Desktop;
-        else return null;
+        if (SourceOf(fg) is not { } source) return null;
 
         uint pid;
         var tid = PInvoke.GetWindowThreadProcessId(fg, &pid);
@@ -49,17 +46,68 @@ internal static class FocusInspector
         return new FileViewTarget(source, fg, view, pid);
     }
 
+    /// <summary>포그라운드가 탐색기 창 또는 바탕화면인지(포커스 위치는 따지지 않음).</summary>
+    public static bool IsShellForeground()
+    {
+        var fg = PInvoke.GetForegroundWindow();
+        return !fg.IsNull && SourceOf(fg) is not null;
+    }
+
+    private static SelectionSource? SourceOf(HWND fg) => ClassOf(fg) switch
+    {
+        "CabinetWClass" => SelectionSource.Explorer,
+        "Progman" or "WorkerW" => SelectionSource.Desktop,
+        _ => null,
+    };
+
     /// <summary>
-    /// 관리자 권한 프로세스인지. 토큰을 열 수 없으면(권한 부족) 관리자 권한으로 간주한다.
-    /// 일반 권한 헬퍼는 UIPI 때문에 그런 창의 선택을 읽을 수 없으므로, 키를 가로채지 않는다.
+    /// 관리자 권한 프로세스인지 캐시에서만 확인한다(훅 스레드용, 블로킹 없음).
+    /// 실측에서 탐색기 프로세스의 토큰 조회가 처음 한 번 400~500ms 걸려 LowLevelHooksTimeout 을 넘길 수 있다.
+    /// 그래서 계산은 포그라운드 변경 시점(<see cref="PrimeElevation"/>)에 백그라운드에서 해 두고,
+    /// 캐시가 없으면 일반 권한으로 간주한 뒤 계산만 예약한다.
     /// </summary>
-    public static unsafe bool IsElevated(uint pid)
+    public static bool IsElevatedCached(uint pid)
     {
         lock (ElevationCache)
         {
             if (ElevationCache.TryGetValue(pid, out var cached)) return cached;
         }
+        PrimeElevation(pid);
+        return false;
+    }
 
+    /// <summary>탐색기/바탕화면 창이면 그 프로세스의 관리자 권한 여부를 백그라운드에서 계산해 둔다.</summary>
+    public static unsafe void PrimeForWindow(HWND hwnd)
+    {
+        if (hwnd.IsNull || SourceOf(hwnd) is null) return;
+        uint pid;
+        if (PInvoke.GetWindowThreadProcessId(hwnd, &pid) != 0) PrimeElevation(pid);
+    }
+
+    private static void PrimeElevation(uint pid)
+    {
+        lock (ElevationCache)
+        {
+            if (ElevationCache.ContainsKey(pid) || !ElevationPending.Add(pid)) return;
+        }
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            bool elevated = ComputeElevated(pid);
+            lock (ElevationCache)
+            {
+                ElevationPending.Remove(pid);
+                if (ElevationCache.Count > 64) ElevationCache.Clear();
+                ElevationCache[pid] = elevated;
+            }
+        });
+    }
+
+    /// <summary>
+    /// 토큰을 열 수 없으면(권한 부족) 관리자 권한으로 간주한다.
+    /// 일반 권한 헬퍼는 UIPI 때문에 그런 창의 선택을 읽을 수 없으므로, 키를 가로채지 않는다.
+    /// </summary>
+    private static unsafe bool ComputeElevated(uint pid)
+    {
         bool elevated;
         using var process = PInvoke.OpenProcess_SafeHandle(PROCESS_ACCESS_RIGHTS.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
         if (process.IsInvalid)
@@ -80,11 +128,6 @@ internal static class FocusInspector
             }
         }
 
-        lock (ElevationCache)
-        {
-            if (ElevationCache.Count > 64) ElevationCache.Clear();
-            ElevationCache[pid] = elevated;
-        }
         return elevated;
     }
 

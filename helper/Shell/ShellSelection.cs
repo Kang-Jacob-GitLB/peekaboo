@@ -162,7 +162,7 @@ internal sealed class ShellSelection
 
             return new SelectionResult(paths.ToArray(), FocusedPath(folderView), target.Source, (nint)target.TopLevel.Value);
         }
-        catch (COMException e)
+        catch (Exception e) when (e is COMException or NotImplementedException)
         {
             throw new ShellAccessException(ErrorCodes.ComFail, $"Selection query failed: 0x{e.HResult:X8}", e);
         }
@@ -181,7 +181,8 @@ internal sealed class ShellSelection
             try { return PathOf((IShellItem)Marshal.GetObjectForIUnknown((nint)ppv)); }
             finally { Marshal.Release((nint)ppv); }
         }
-        catch (COMException e)
+        // 홈·갤러리 같은 일부 뷰는 E_NOTIMPL(NotImplementedException)을 낸다(실측)
+        catch (Exception e) when (e is COMException or NotImplementedException)
         {
             Log.Info($"no focused item: 0x{e.HResult:X8}");
             return null;
