@@ -68,7 +68,8 @@ function start(): void {
         helper.send({ v: 1, type: 'state', previewOpen: preview.isOpen })
         break
       case 'key':
-        if (msg.key === 'space') preview.isOpen ? closePreview() : openPreview()
+        // 여는 중(getSelection 응답 대기)에 다시 Space 를 누르면 취소로 본다
+        if (msg.key === 'space') preview.isOpen || pendingOpen.size > 0 ? closePreview() : openPreview()
         else if (msg.key === 'esc' || msg.key === 'enter') closePreview()
         // 방향키: 탐색기가 선택을 옮기고, 헬퍼가 selection 알림을 보낸다
         break
