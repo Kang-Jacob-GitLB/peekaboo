@@ -15,7 +15,12 @@ const api: PeekabooApi = {
   readText: (path, maxBytes) => ipcRenderer.invoke(Channels.readText, path, maxBytes),
   listDir: (path, max) => ipcRenderer.invoke(Channels.listDir, path, max),
   fileUrl: (path) => toPeekUrl(path),
-  rendered: (seq) => ipcRenderer.send(Channels.rendered, seq)
+  rendered: (seq) => ipcRenderer.send(Channels.rendered, seq),
+  nativePreview: {
+    open: (path, rect) => ipcRenderer.invoke(Channels.nativeOpen, path, rect),
+    resize: (handle, rect) => ipcRenderer.send(Channels.nativeResize, handle, rect),
+    close: (handle) => ipcRenderer.send(Channels.nativeClose, handle)
+  }
 }
 
 contextBridge.exposeInMainWorld('peekaboo', api)

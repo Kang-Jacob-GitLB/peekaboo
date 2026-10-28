@@ -6,7 +6,10 @@ export const Channels = {
   hide: 'preview:hide',
   readText: 'preview:read-text',
   listDir: 'preview:list-dir',
-  rendered: 'preview:rendered'
+  rendered: 'preview:rendered',
+  nativeOpen: 'preview:native-open',
+  nativeResize: 'preview:native-resize',
+  nativeClose: 'preview:native-close'
 } as const
 
 export const PEEK_SCHEME = 'peek'

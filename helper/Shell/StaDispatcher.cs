@@ -17,9 +17,9 @@ internal sealed class StaDispatcher : IDisposable
     private readonly Thread _thread;
     private volatile bool _stopping;
 
-    public StaDispatcher()
+    public StaDispatcher(string name = "shell-sta")
     {
-        _thread = new Thread(Run) { IsBackground = true, Name = "shell-sta" };
+        _thread = new Thread(Run) { IsBackground = true, Name = name };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
     }

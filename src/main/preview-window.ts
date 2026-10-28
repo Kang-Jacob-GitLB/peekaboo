@@ -5,6 +5,8 @@ import { Channels } from '../shared/channels'
 import type { ShowPayload } from '../shared/preview-api'
 import { getFileInfo, listDirectory, readTextHead } from './file-service'
 import { createLogger } from './logger'
+import type { NativePreviewBridge } from './native-preview'
+import type { PixelRect } from '../shared/ipc-types'
 
 const log = createLogger('preview')
 
@@ -29,7 +31,10 @@ export class PreviewWindow {
   private pendingT0 = new Map<number, number>()
   private visible = false
 
-  constructor(private readonly keepWarmSeconds: () => number) {
+  constructor(
+    private readonly keepWarmSeconds: () => number,
+    private readonly native: NativePreviewBridge
+  ) {
     this.registerIpc()
   }
 
@@ -73,6 +78,7 @@ export class PreviewWindow {
     if (!this.win || !this.visible) return
     this.visible = false
     this.currentPath = null
+    this.native.closeAll('hidden')
     this.win.webContents.send(Channels.hide)
     const keep = this.keepWarmSeconds()
     if (keep <= 0) {
@@ -88,6 +94,7 @@ export class PreviewWindow {
     this.destroyTimer = null
     this.visible = false
     this.currentPath = null
+    this.native.closeAll('destroyed')
     this.loaded = null
     if (this.win && !this.win.isDestroyed()) this.win.destroy()
     this.win = null
@@ -176,6 +183,19 @@ export class PreviewWindow {
       if (!fromPreview(e.sender) || !this.isAllowedPath(path)) throw new Error('Forbidden')
       return listDirectory(path, max)
     })
+    ipcMain.handle(Channels.nativeOpen, async (e, path: string, rect: PixelRect) => {
+      if (!fromPreview(e.sender) || !this.isAllowedPath(path) || !isRect(rect)) throw new Error('Forbidden')
+      const win = this.win!
+      // 64비트 Windows 의 HWND 는 8바이트 버퍼로 온다. 실제 값은 32비트 범위라 Number 로 안전하다.
+      const hwnd = Number(win.getNativeWindowHandle().readBigUInt64LE(0))
+      return this.native.open(path, hwnd, rect, nativeTheme.shouldUseDarkColors)
+    })
+    ipcMain.on(Channels.nativeResize, (e, handle: number, rect: PixelRect) => {
+      if (fromPreview(e.sender) && isRect(rect)) this.native.resize(handle, rect)
+    })
+    ipcMain.on(Channels.nativeClose, (e, handle: number) => {
+      if (fromPreview(e.sender)) this.native.close(handle)
+    })
     ipcMain.on(Channels.rendered, (e, seq: number) => {
       if (!fromPreview(e.sender)) return
       const t0 = this.pendingT0.get(seq)
@@ -183,4 +203,10 @@ export class PreviewWindow {
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
     })
   }
+}
+
+function isRect(r: unknown): r is PixelRect {
+  if (typeof r !== 'object' || r === null) return false
+  const { x, y, width, height } = r as Record<string, unknown>
+  return [x, y, width, height].every((n) => typeof n === 'number' && Number.isFinite(n)) && (width as number) >= 0 && (height as number) >= 0
 }

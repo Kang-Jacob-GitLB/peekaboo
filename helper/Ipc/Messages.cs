@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Peekaboo.Helper.Shell;
+using Windows.Win32.Foundation;
 
 namespace Peekaboo.Helper.Ipc;
 
@@ -74,6 +76,19 @@ internal static class Outgoing
         w.WriteNumber("id", id);
     });
 
+    public static void NativePreview(JsonLineChannel ch, int id, NativePreviewStatus status, string? message) => ch.Send(w =>
+    {
+        w.WriteString("type", "nativePreview");
+        w.WriteNumber("id", id);
+        w.WriteString("status", status switch
+        {
+            NativePreviewStatus.Shown => "shown",
+            NativePreviewStatus.Unavailable => "unavailable",
+            _ => "failed",
+        });
+        if (message is not null) w.WriteString("message", message);
+    });
+
     public static void Error(JsonLineChannel ch, int? id, string code, string message) => ch.Send(w =>
     {
         w.WriteString("type", "error");
@@ -92,6 +107,10 @@ internal abstract record HostCommand
     public sealed record Ping(int Id) : HostCommand;
     public sealed record Shutdown : HostCommand;
     public sealed record Unknown(string Type) : HostCommand;
+    /// <param name="Rect">미리보기 창 클라이언트 영역 기준 물리 픽셀</param>
+    public sealed record NativePreviewOpen(int Id, string Path, nint Hwnd, RECT Rect, bool Dark) : HostCommand;
+    public sealed record NativePreviewResize(int Id, RECT Rect) : HostCommand;
+    public sealed record NativePreviewClose(int Id) : HostCommand;
 
     /// <exception cref="FormatException">JSON 이 아니거나 필수 필드가 없을 때</exception>
     public static HostCommand Parse(string line)
@@ -108,6 +127,14 @@ internal abstract record HostCommand
                 "getSelection" => new GetSelection(root.GetProperty("id").GetInt32()),
                 "ping" => new Ping(root.GetProperty("id").GetInt32()),
                 "shutdown" => new Shutdown(),
+                "nativePreview.open" => new NativePreviewOpen(
+                    root.GetProperty("id").GetInt32(),
+                    root.GetProperty("path").GetString() ?? throw new FormatException("path is null"),
+                    (nint)root.GetProperty("hwnd").GetInt64(),
+                    ParseRect(root.GetProperty("rect")),
+                    root.GetProperty("dark").GetBoolean()),
+                "nativePreview.resize" => new NativePreviewResize(root.GetProperty("id").GetInt32(), ParseRect(root.GetProperty("rect"))),
+                "nativePreview.close" => new NativePreviewClose(root.GetProperty("id").GetInt32()),
                 _ => new Unknown(type),
             };
         }
@@ -115,5 +142,16 @@ internal abstract record HostCommand
         {
             throw new FormatException(e.Message, e);
         }
+    }
+
+    /// <summary>{x, y, width, height} → RECT(left, top, right, bottom). 소수는 반올림.</summary>
+    private static RECT ParseRect(JsonElement r)
+    {
+        int x = (int)Math.Round(r.GetProperty("x").GetDouble());
+        int y = (int)Math.Round(r.GetProperty("y").GetDouble());
+        int w = (int)Math.Round(r.GetProperty("width").GetDouble());
+        int h = (int)Math.Round(r.GetProperty("height").GetDouble());
+        if (w < 0 || h < 0) throw new FormatException("negative rect size");
+        return new RECT { left = x, top = y, right = x + w, bottom = y + h };
     }
 }

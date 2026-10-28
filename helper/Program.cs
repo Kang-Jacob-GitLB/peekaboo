@@ -54,6 +54,7 @@ internal static class Program
         using var channel = new JsonLineChannel();
         var sink = new ProtocolSink(channel);
         using var core = new HelperCore(sink);
+        using var nativePreview = new Shell.NativePreviewHost((id, status, message) => Outgoing.NativePreview(channel, id, status, message));
         try
         {
             core.Start();
@@ -90,6 +91,9 @@ internal static class Program
                 case HostCommand.State s: core.SetPreviewOpen(s.PreviewOpen); break;
                 case HostCommand.GetSelection g: core.RequestSelection(g.Id); break;
                 case HostCommand.Ping p: core.Ping(() => Outgoing.Pong(channel, p.Id)); break;
+                case HostCommand.NativePreviewOpen o: nativePreview.Open(o.Id, o.Path, o.Hwnd, o.Rect, o.Dark); break;
+                case HostCommand.NativePreviewResize r: nativePreview.Resize(r.Id, r.Rect); break;
+                case HostCommand.NativePreviewClose c: nativePreview.Close(c.Id); break;
                 case HostCommand.Shutdown: return 0;
                 case HostCommand.Unknown: break; // 전방 호환: 모르는 메시지는 무시
             }
