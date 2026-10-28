@@ -26,8 +26,8 @@ macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현�
 - [x] 텍스트 / 소스 코드 (구문 강조, UTF-8/UTF-16/CP949 자동 감지, 512KB까지)
 - [x] Markdown (HTML 태그는 표시하지 않음, 상대 경로 이미지는 대체 텍스트로 표시)
 - [x] PDF (pdf.js, 보이는 페이지만 렌더)
-- [ ] 영상 / 오디오
-- [ ] 폴더 (파일 목록)
+- [x] 영상 / 오디오 (mp4·webm·mov·mkv, mp3·m4a·wav·ogg·opus·flac — Chromium 이 재생 가능한 코덱)
+- [x] 폴더 (파일 목록, 최대 500개)
 - [ ] zip 목록
 - [x] Word / Excel / PowerPoint (docx·xlsx·pptx, 구형 doc·xls·ppt·rtf)
   — Windows 에 등록된 미리보기 핸들러(Office 설치 시 원본과 같은 모양)를 우선 사용하고,
