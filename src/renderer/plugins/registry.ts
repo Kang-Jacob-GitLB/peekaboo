@@ -7,6 +7,11 @@ const nativeFirst = (fallback?: () => Promise<PluginModule>) =>
   import('./native').then((m) => m.nativeFirst(fallback))
 
 const IMAGE = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
+// 실제 재생 가능 여부는 Chromium 코덱 지원에 달려 있고, 못 하면 폴백 카드로 표시된다.
+const MEDIA = [
+  'mp4', 'webm', 'mkv', 'mov', 'm4v',
+  'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac',
+]
 const TEXT = [
   'txt', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'html', 'xml',
   'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'csv', 'tsv', 'py', 'rb', 'go', 'rs', 'java', 'kt',
@@ -28,6 +33,8 @@ export const plugins: PluginEntry[] = [
   { id: 'pptx', extensions: ['pptx'], load: () => nativeFirst(() => import('./pptx')) },
   // 구형 Office 형식은 자체 렌더러가 없어 핸들러가 없으면 폴백 카드로 표시
   { id: 'office-legacy', extensions: ['doc', 'ppt', 'rtf'], load: () => nativeFirst() },
+  { id: 'media', extensions: MEDIA, load: () => import('./media') },
+  { id: 'folder', extensions: [], matchDirectory: true, load: () => import('./folder') },
   { id: 'fallback', extensions: ['*'], matchDirectory: true, load: () => import('./fallback') },
 ]
 
