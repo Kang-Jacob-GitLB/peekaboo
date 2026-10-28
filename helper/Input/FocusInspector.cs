@@ -18,7 +18,7 @@ internal static class FocusInspector
 
     /// <summary>
     /// 훅 콜백에서 호출되므로 COM 없이 가벼운 Win32 호출만 사용한다.
-    /// 허용 목록 방식: 파일 목록(DirectUIHWND, 부모 SHELLDLL_DefView)에 포커스가 있고 캐럿이 없을 때만 대상.
+    /// 허용 목록 방식: 파일 목록(DirectUIHWND 또는 SysListView32, 부모 SHELLDLL_DefView)에 포커스가 있고 캐럿이 없을 때만 대상.
     /// 이름 바꾸기(Edit), 주소창, 검색창 등은 이 조건에 걸리지 않으므로 자동으로 제외된다.
     /// </summary>
     public static unsafe FileViewTarget? GetFileViewTarget()
@@ -40,8 +40,9 @@ internal static class FocusInspector
         if (!PInvoke.GetGUIThreadInfo(tid, ref gui)) return null;
         if (!gui.hwndCaret.IsNull) return null; // 텍스트 입력 중
 
+        // 탐색기 파일 목록은 DirectUIHWND, 바탕화면 아이콘 뷰는 SysListView32 ("FolderView")
         var focus = gui.hwndFocus;
-        if (focus.IsNull || ClassOf(focus) != "DirectUIHWND") return null;
+        if (focus.IsNull || ClassOf(focus) is not ("DirectUIHWND" or "SysListView32")) return null;
         var view = PInvoke.GetParent(focus);
         if (view.IsNull || ClassOf(view) != "SHELLDLL_DefView") return null;
 

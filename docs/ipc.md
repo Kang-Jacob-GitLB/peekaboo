@@ -29,7 +29,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 
 ## 키 처리 규칙
 
-헬퍼가 키를 "가로챌 수 있는" 조건: 단축키 활성 + 포그라운드가 탐색기(`CabinetWClass`) 또는 바탕화면(`Progman`/`WorkerW`) + 키보드 포커스가 파일 뷰(`SHELLDLL_DefView` 하위 `DirectUIHWND`) + 캐럿 없음 + 수정키(Ctrl/Alt/Win) 미입력.
+헬퍼가 키를 "가로챌 수 있는" 조건: 단축키 활성 + 포그라운드가 탐색기(`CabinetWClass`) 또는 바탕화면(`Progman`/`WorkerW`) + 키보드 포커스가 파일 뷰(`SHELLDLL_DefView` 하위 `DirectUIHWND`, 바탕화면은 `SysListView32`) + 캐럿 없음 + 수정키(Ctrl/Alt/Win) 미입력.
 
 | 키 | 미리보기 닫힘 | 미리보기 열림 |
 |---|---|---|
