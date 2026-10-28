@@ -63,3 +63,54 @@
 .markdown-body hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
 .markdown-body img { max-width: 100%; }
 .img-missing { color: var(--fg-dim); font-style: italic; }
+
+/* pdf */
+.pdf-view { background: var(--bg); }
+.pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+.pdf-page { flex: none; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
+.pdf-page canvas { display: block; width: 100%; height: 100%; }
+
+/* docx — 본문 스타일은 markdown-body 를 재사용 */
+.docx-body { background: transparent; }
+.docx-empty { color: var(--fg-dim); font-style: italic; }
+.docx-body img { height: auto; }
+
+/* xlsx */
+.xlsx-view { display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+.xlsx-scroll { flex: 1; min-height: 0; overflow: auto; }
+.xlsx-table { border-collapse: separate; border-spacing: 0; font-size: 12.5px; white-space: pre; }
+.xlsx-table th, .xlsx-table td { padding: 3px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.xlsx-table th { position: sticky; z-index: 1; background: var(--bg); color: var(--fg-dim); font-weight: 500; text-align: center; }
+.xlsx-table thead th { top: 0; }
+.xlsx-table tbody th { left: 0; min-width: 2.6em; }
+.xlsx-table thead th:first-child { left: 0; z-index: 2; }
+.xlsx-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.xlsx-empty { color: var(--fg-dim); font-style: italic; border: 0; }
+.xlsx-tabs { flex: none; display: flex; gap: 2px; padding: 4px 8px; overflow-x: auto; background: var(--bg); border-top: 1px solid var(--border); }
+.xlsx-tabs button {
+  flex: none; max-width: 200px; padding: 4px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: inherit; font-size: 12px; color: var(--fg-dim); background: transparent; border: 0; border-radius: 4px; cursor: default;
+}
+.xlsx-tabs button:hover { background: var(--code-bg); }
+.xlsx-tabs button.active { color: var(--accent); background: var(--badge-bg); font-weight: 600; }
+
+/* pptx */
+.pptx-view { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.pptx-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.pptx-card { flex: none; display: flex; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.pptx-no { flex: none; width: 24px; color: var(--fg-dim); font-size: 12px; text-align: right; }
+.pptx-body { flex: 1; min-width: 0; display: flex; gap: 14px; align-items: flex-start; }
+.pptx-thumb { flex: none; max-width: 200px; max-height: 130px; object-fit: contain; border-radius: 4px; border: 1px solid var(--border); background: var(--check-a); }
+.pptx-text { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.pptx-text p { margin: 0 0 0.35em; }
+.pptx-title { font-size: 15px; font-weight: 600; }
+.pptx-empty { color: var(--fg-dim); font-style: italic; }
+
+/* ---------- Windows 미리보기 핸들러 ---------- */
+/* 핸들러 창이 이 영역 위에 네이티브 자식 창으로 겹쳐진다. 그 전까지만 안내가 보인다. */
+.content.native-host { overflow: hidden; }
+.native-wait {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  color: var(--fg-dim);
+}

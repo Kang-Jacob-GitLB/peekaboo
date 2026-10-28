@@ -1,7 +1,7 @@
 # Peekaboo
 
 Windows 탐색기에서 파일을 선택하고 **스페이스바**를 누르면 바로 미리보기 창이 뜨는 상주 프로그램입니다.
-macOS Quick Look 과 비슷한 사용감을 목표로, 처음부터 새로 작성했습니다.
+macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현은 [QuickLook](https://github.com/QL-Win/QuickLook)(GPL-3.0)을 참고했습니다(아래 라이선스 참고).
 
 > 🚧 개발 중 (v0.1, MVP) — 아래 지원 포맷 중 체크된 것만 동작합니다.
 
@@ -25,11 +25,13 @@ macOS Quick Look 과 비슷한 사용감을 목표로, 처음부터 새로 작�
 - [x] 이미지: jpg, png, gif, webp, svg, bmp, ico, avif
 - [x] 텍스트 / 소스 코드 (구문 강조, UTF-8/UTF-16/CP949 자동 감지, 512KB까지)
 - [x] Markdown (HTML 태그는 표시하지 않음, 상대 경로 이미지는 대체 텍스트로 표시)
-- [ ] PDF
+- [x] PDF (pdf.js, 보이는 페이지만 렌더)
 - [ ] 영상 / 오디오
 - [ ] 폴더 (파일 목록)
 - [ ] zip 목록
-- [ ] docx / xlsx 간단 미리보기
+- [x] Word / Excel / PowerPoint (docx·xlsx·pptx, 구형 doc·xls·ppt·rtf)
+  — Windows 에 등록된 미리보기 핸들러(Office 설치 시 원본과 같은 모양)를 우선 사용하고,
+  없으면 자체 간이 미리보기(docx 본문·표, xlsx 시트 표, pptx 슬라이드 텍스트·이미지)로 표시
 
 ## 설치
 
@@ -92,9 +94,30 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 
 - **관리자 권한으로 실행된 탐색기 창에서는 동작하지 않습니다.** 일반 권한 프로그램은 Windows 보안 정책(UIPI) 때문에 권한이 높은 창의 선택 항목을 읽을 수 없습니다. 이때는 키를 그대로 통과시키며 앱이 종료되지는 않습니다.
 - 탐색기 이외의 파일 대화상자, 서드파티 파일 관리자는 지원하지 않습니다.
+- Office 미리보기 핸들러는 처음 한 번 Office 프로그램이 백그라운드로 기동되느라 수 초 걸릴 수 있습니다. 8초 안에 뜨지 않으면 간이 미리보기로 대신 표시합니다.
+- Office 미리보기는 별도 네이티브 창이라 미리보기 창 안에서 스크롤·클릭이 핸들러 동작을 따릅니다.
 - 미리보기 창은 포커스를 가져가지 않으므로, 창 안의 스크롤은 마우스 휠로 합니다.
 - 코드 서명이 없어 SmartScreen 경고가 뜹니다(위 설치 항목 참고).
 
 ## 라이선스
 
-[MIT](LICENSE)
+[GNU General Public License v3.0](LICENSE) (GPL-3.0-only)
+
+이 프로젝트는 [QuickLook](https://github.com/QL-Win/QuickLook)(Copyright © QL-Win contributors, GPL-3.0)의
+구현을 참고하거나 일부 가져와 수정했습니다. 해당 파일 머리말에 출처와 변경 사실을 표기합니다.
+
+v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부터 GPL-3.0 을 따릅니다.
+
+### 서드파티 라이브러리
+
+| 라이브러리 | 라이선스 |
+|---|---|
+| Electron | MIT |
+| pdf.js (pdfjs-dist) | Apache-2.0 |
+| SheetJS (xlsx) | Apache-2.0 |
+| mammoth | BSD-2-Clause |
+| JSZip | MIT (MIT 또는 GPL-3.0 이중 라이선스 중 MIT 선택) |
+| highlight.js | BSD-3-Clause |
+| markdown-it | MIT |
+| DOMPurify | Apache-2.0 / MPL-2.0 |
+| CsWin32 (빌드 도구) | MIT |

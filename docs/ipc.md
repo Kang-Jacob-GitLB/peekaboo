@@ -16,6 +16,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | `selection` | `id?`, `paths[]`, `focused`, `source`: `explorer`·`desktop`, `hwnd` | `getSelection` 응답(`id` 있음) 또는 선택 변경 알림(`id` 없음) |
 | `pong` | `id` | `ping` 응답 |
 | `error` | `id?`, `code`, `message` | 복구 가능한 오류. `ELEVATED`(관리자 권한 창), `NO_VIEW`, `COM_FAIL`, `BAD_MESSAGE`, `INTERNAL` |
+| `nativePreview` | `id`, `status`: `shown`·`unavailable`·`failed`, `message?` | `nativePreview.open` 응답. `unavailable` = 등록된 미리보기 핸들러 없음 |
 
 ## Electron → Helper
 
@@ -26,6 +27,17 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | `getSelection` | `id` | 포그라운드 탐색기/바탕화면의 현재 선택 조회 |
 | `ping` | `id` | 생존 확인. Electron 은 2초 간격으로 보내고 연속 3회 무응답이면 헬퍼를 재시작한다 |
 | `shutdown` | — | 정상 종료 요청 |
+| `nativePreview.open` | `id`, `path`, `hwnd`, `rect`{`x`,`y`,`width`,`height`}, `dark` | Windows 미리보기 핸들러(IPreviewHandler)를 미리보기 창(`hwnd`) 안 `rect`(클라이언트 영역, 물리 픽셀)에 띄운다. 이전 것은 자동으로 닫힌다 |
+| `nativePreview.resize` | `id`, `rect` | 표시 영역 변경 |
+| `nativePreview.close` | `id` | 닫기(Unload) |
+
+### Windows 미리보기 핸들러 호스팅
+
+- 핸들러는 `AssocQueryString(ASSOCSTR_SHELLEXTENSION, ".ext", "{8895b1c6-b41f-4c1c-a562-0d564250836f}")` 로 찾고 `CLSCTX_LOCAL_SERVER` 로만 만든다(핸들러는 항상 별도 프로세스에서 실행).
+- 초기화는 `IInitializeWithStream` → `IInitializeWithItem` → `IInitializeWithFile` 순으로 시도한다(공유 읽기, 파일을 잠그지 않음).
+- 헬퍼가 `rect` 위치에 컨테이너 자식 창을 만들고, 핸들러에는 그 안의 `(0,0,w,h)` 를 넘긴다. 핸들러마다 RECT 위치 해석이 달라서다(실측: PowerPoint 는 위치를 무시).
+- 핸들러 호출은 전용 STA 스레드에서 하므로 `DoPreview` 가 오래 걸려도 선택 조회는 막히지 않는다. 대기열의 오래된 `open` 은 건너뛴다.
+- Electron 은 8초 안에 응답이 없으면 `failed` 로 보고 렌더러의 자체 미리보기로 넘어간다.
 
 ## 키 처리 규칙
 

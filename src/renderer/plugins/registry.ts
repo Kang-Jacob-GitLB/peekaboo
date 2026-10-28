@@ -1,4 +1,10 @@
-import type { FileInfo, PluginEntry } from './types'
+import type { FileInfo, PluginEntry, PreviewPlugin } from './types'
+
+type PluginModule = { create: () => PreviewPlugin }
+
+/** native 래퍼 모듈도 선택될 때만 로드한다. */
+const nativeFirst = (fallback?: () => Promise<PluginModule>) =>
+  import('./native').then((m) => m.nativeFirst(fallback))
 
 const IMAGE = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
 const TEXT = [
@@ -15,6 +21,13 @@ export const plugins: PluginEntry[] = [
   { id: 'image', extensions: IMAGE, load: () => import('./image') },
   { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], load: () => import('./markdown') },
   { id: 'text', extensions: TEXT, load: () => import('./text') },
+  { id: 'pdf', extensions: ['pdf'], load: () => import('./pdf') },
+  // Office 문서: Windows 미리보기 핸들러(Office 설치 시 원본과 같은 모양) 우선, 없으면 자체 간이 렌더러
+  { id: 'docx', extensions: ['docx'], load: () => nativeFirst(() => import('./docx')) },
+  { id: 'xlsx', extensions: ['xlsx', 'xlsm', 'xls'], load: () => nativeFirst(() => import('./xlsx')) },
+  { id: 'pptx', extensions: ['pptx'], load: () => nativeFirst(() => import('./pptx')) },
+  // 구형 Office 형식은 자체 렌더러가 없어 핸들러가 없으면 폴백 카드로 표시
+  { id: 'office-legacy', extensions: ['doc', 'ppt', 'rtf'], load: () => nativeFirst() },
   { id: 'fallback', extensions: ['*'], matchDirectory: true, load: () => import('./fallback') },
 ]
 

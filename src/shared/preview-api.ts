@@ -1,5 +1,9 @@
 // main <-> renderer(미리보기 창) 계약. preload 가 window.peekaboo 로 노출한다.
 
+import type { NativePreviewStatus, PixelRect } from './ipc-types'
+
+export type { NativePreviewStatus, PixelRect }
+
 export interface FileInfo {
   path: string
   name: string
@@ -54,4 +58,21 @@ export interface PeekabooApi {
   fileUrl(path: string): string
   /** 렌더 완료 신호(첫 표시 지연 측정용) */
   rendered(seq: number): void
+  /**
+   * Windows 에 등록된 미리보기 핸들러(Office 등)를 rect(이 창 클라이언트 영역, 물리 픽셀) 위치에 띄운다.
+   * 핸들러 창은 HTML 위에 겹쳐지는 별도 네이티브 창이다. 한 번에 하나만 열리며 새로 열면 이전 것은 닫힌다.
+   * 결과가 'shown' 이 아니면 플러그인이 자체 렌더러로 대체해야 한다.
+   */
+  nativePreview: {
+    open(path: string, rect: PixelRect): Promise<NativePreviewResult>
+    resize(handle: number, rect: PixelRect): void
+    close(handle: number): void
+  }
+}
+
+export interface NativePreviewResult {
+  /** resize/close 에 쓰는 식별자 */
+  handle: number
+  status: NativePreviewStatus
+  message?: string
 }

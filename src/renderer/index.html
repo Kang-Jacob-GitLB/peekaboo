@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data: peek:; media-src peek:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      content="default-src 'self'; img-src 'self' data: blob: peek:; media-src peek:; connect-src 'self' peek:; worker-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'"
     />
     <title>Peekaboo</title>
     <link rel="stylesheet" href="./styles/base.css" />

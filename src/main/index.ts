@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import type { HelperMessage } from '../shared/ipc-types'
 import { HelperSupervisor } from './helper-supervisor'
+import { NativePreviewBridge } from './native-preview'
 import { createLogger } from './logger'
 import { PreviewWindow } from './preview-window'
 import { handlePeekProtocol, registerPeekScheme } from './protocol'
@@ -26,7 +27,8 @@ function start(): void {
   log.info(`Peekaboo ${app.getVersion()} starting (packaged=${app.isPackaged})`)
 
   const helper = new HelperSupervisor()
-  const preview = new PreviewWindow(() => getSettings().keepWarmSeconds)
+  const native = new NativePreviewBridge((msg) => helper.send(msg))
+  const preview = new PreviewWindow(() => getSettings().keepWarmSeconds, native)
   handlePeekProtocol((path) => preview.isAllowedPath(path))
 
   const tray = new AppTray((enabled) => {
@@ -63,7 +65,9 @@ function start(): void {
   helper.on('message', (msg: HelperMessage) => {
     switch (msg.type) {
       case 'ready':
-        // 헬퍼가 (재)시작됨 → 현재 설정/상태를 다시 알린다
+        // 헬퍼가 (재)시작됨 → 이전 헬퍼가 띄운 미리보기 핸들러는 사라졌으므로 대기 중인 요청을 끝낸다
+        native.closeAll('helper restarted')
+        // 현재 설정/상태를 다시 알린다
         helper.send({ v: 1, type: 'config', enabled: getSettings().hotkeyEnabled })
         helper.send({ v: 1, type: 'state', previewOpen: preview.isOpen })
         break
@@ -82,6 +86,9 @@ function start(): void {
         } else if (preview.isOpen) {
           showSelection(msg.paths, msg.focused, performance.now())
         }
+        break
+      case 'nativePreview':
+        native.onResult(msg.id, msg.status, msg.message)
         break
       case 'error':
         if (msg.id !== undefined) pendingOpen.delete(msg.id)

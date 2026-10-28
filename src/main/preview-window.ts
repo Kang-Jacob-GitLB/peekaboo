@@ -1,10 +1,12 @@
 import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
 import type { ShowPayload } from '../shared/preview-api'
 import { getFileInfo, listDirectory, readTextHead } from './file-service'
 import { createLogger } from './logger'
+import type { NativePreviewBridge } from './native-preview'
+import type { PixelRect } from '../shared/ipc-types'
 
 const log = createLogger('preview')
 
@@ -29,7 +31,10 @@ export class PreviewWindow {
   private pendingT0 = new Map<number, number>()
   private visible = false
 
-  constructor(private readonly keepWarmSeconds: () => number) {
+  constructor(
+    private readonly keepWarmSeconds: () => number,
+    private readonly native: NativePreviewBridge
+  ) {
     this.registerIpc()
   }
 
@@ -73,6 +78,7 @@ export class PreviewWindow {
     if (!this.win || !this.visible) return
     this.visible = false
     this.currentPath = null
+    this.native.closeAll('hidden')
     this.win.webContents.send(Channels.hide)
     const keep = this.keepWarmSeconds()
     if (keep <= 0) {
@@ -88,6 +94,7 @@ export class PreviewWindow {
     this.destroyTimer = null
     this.visible = false
     this.currentPath = null
+    this.native.closeAll('destroyed')
     this.loaded = null
     if (this.win && !this.win.isDestroyed()) this.win.destroy()
     this.win = null
@@ -176,11 +183,48 @@ export class PreviewWindow {
       if (!fromPreview(e.sender) || !this.isAllowedPath(path)) throw new Error('Forbidden')
       return listDirectory(path, max)
     })
+    ipcMain.handle(Channels.nativeOpen, async (e, path: string, rect: PixelRect) => {
+      if (!fromPreview(e.sender) || !this.isAllowedPath(path) || !isRect(rect)) throw new Error('Forbidden')
+      // 인터넷에서 받은 파일(Mark of the Web)은 Office 등 외부 파서를 돌리지 않는다.
+      // 탐색기도 같은 이유로 이런 파일의 미리 보기 창을 막는다. 샌드박스된 자체 렌더러로 보낸다.
+      if (await isFromInternet(path)) return { handle: 0, status: 'unavailable', message: 'internet-zone' }
+      const win = this.win
+      if (!win || win.isDestroyed()) throw new Error('Forbidden')
+      // 64비트 Windows 의 HWND 는 8바이트 버퍼로 온다. 실제 값은 32비트 범위라 Number 로 안전하다.
+      const hwnd = Number(win.getNativeWindowHandle().readBigUInt64LE(0))
+      return this.native.open(path, hwnd, rect, nativeTheme.shouldUseDarkColors)
+    })
+    ipcMain.on(Channels.nativeResize, (e, handle: number, rect: PixelRect) => {
+      if (fromPreview(e.sender) && isRect(rect)) this.native.resize(handle, rect)
+    })
+    ipcMain.on(Channels.nativeClose, (e, handle: number) => {
+      if (fromPreview(e.sender)) this.native.close(handle)
+    })
     ipcMain.on(Channels.rendered, (e, seq: number) => {
       if (!fromPreview(e.sender)) return
       const t0 = this.pendingT0.get(seq)
       if (t0 !== undefined) log.info(`rendered seq=${seq} in ${(performance.now() - t0).toFixed(0)}ms since key`)
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
     })
+  }
+}
+
+function isRect(r: unknown): r is PixelRect {
+  if (typeof r !== 'object' || r === null) return false
+  const { x, y, width, height } = r as Record<string, unknown>
+  return [x, y, width, height].every((n) => typeof n === 'number' && Number.isFinite(n)) && (width as number) >= 0 && (height as number) >= 0
+}
+
+/**
+ * NTFS 대체 데이터 스트림 Zone.Identifier 의 ZoneId 가 3(인터넷) 이상인지.
+ * 스트림이 없거나 읽을 수 없으면(로컬 파일, FAT32 등) false.
+ */
+async function isFromInternet(path: string): Promise<boolean> {
+  try {
+    const text = await readFile(`${path}:Zone.Identifier`, 'utf8')
+    const zone = /^\s*ZoneId\s*=\s*(\d+)/im.exec(text)
+    return zone !== null && Number(zone[1]) >= 3
+  } catch {
+    return false
   }
 }

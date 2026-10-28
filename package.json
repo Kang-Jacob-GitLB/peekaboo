@@ -3,7 +3,7 @@
   "productName": "Peekaboo",
   "version": "0.1.0",
   "description": "Quick file preview for Windows Explorer — press Space to peek.",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
@@ -26,6 +26,10 @@
   "dependencies": {
     "dompurify": "^3.4.17",
     "highlight.js": "^11.12.0",
-    "markdown-it": "^15.0.3"
+    "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
+    "markdown-it": "^15.0.3",
+    "pdfjs-dist": "^6.4.299",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
