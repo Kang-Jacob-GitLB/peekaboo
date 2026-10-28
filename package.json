@@ -1,0 +1,25 @@
+{
+  "name": "peekaboo",
+  "productName": "Peekaboo",
+  "version": "0.1.0",
+  "description": "Quick file preview for Windows Explorer — press Space to peek.",
+  "license": "MIT",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "helper:build": "dotnet publish helper/Peekaboo.Helper.csproj -c Release -o helper/publish",
+    "helper:console": "dotnet run --project helper/Peekaboo.Helper.csproj -- --console",
+    "dist": "npm run helper:build && npm run build && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

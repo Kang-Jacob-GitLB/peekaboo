@@ -1,0 +1,30 @@
+# Node / Electron
+node_modules/
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# .NET helper
+helper/bin/
+helper/obj/
+helper/publish/
+*.user
+.vs/
+
+# Logs
+logs/
+*.log
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
