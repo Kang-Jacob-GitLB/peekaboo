@@ -1,7 +1,7 @@
 # Peekaboo
 
 Windows 탐색기에서 파일을 선택하고 **스페이스바**를 누르면 바로 미리보기 창이 뜨는 상주 프로그램입니다.
-macOS Quick Look 과 비슷한 사용감을 목표로, 처음부터 새로 작성했습니다.
+macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현은 [QuickLook](https://github.com/QL-Win/QuickLook)(GPL-3.0)을 참고했습니다(아래 라이선스 참고).
 
 > 🚧 개발 중 (v0.1, MVP) — 아래 지원 포맷 중 체크된 것만 동작합니다.
 
@@ -101,4 +101,23 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 
 ## 라이선스
 
-[MIT](LICENSE)
+[GNU General Public License v3.0](LICENSE) (GPL-3.0-only)
+
+이 프로젝트는 [QuickLook](https://github.com/QL-Win/QuickLook)(Copyright © QL-Win contributors, GPL-3.0)의
+구현을 참고하거나 일부 가져와 수정했습니다. 해당 파일 머리말에 출처와 변경 사실을 표기합니다.
+
+v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부터 GPL-3.0 을 따릅니다.
+
+### 서드파티 라이브러리
+
+| 라이브러리 | 라이선스 |
+|---|---|
+| Electron | MIT |
+| pdf.js (pdfjs-dist) | Apache-2.0 |
+| SheetJS (xlsx) | Apache-2.0 |
+| mammoth | BSD-2-Clause |
+| JSZip | MIT (MIT 또는 GPL-3.0 이중 라이선스 중 MIT 선택) |
+| highlight.js | BSD-3-Clause |
+| markdown-it | MIT |
+| DOMPurify | Apache-2.0 / MPL-2.0 |
+| CsWin32 (빌드 도구) | MIT |

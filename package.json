@@ -3,7 +3,7 @@
   "productName": "Peekaboo",
   "version": "0.1.0",
   "description": "Quick file preview for Windows Explorer — press Space to peek.",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
