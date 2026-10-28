@@ -51,9 +51,11 @@ class NativeFirstPlugin implements PreviewPlugin {
     container.replaceChildren()
     if (!this.loadFallback) {
       throw new Error(
-        result.status === 'unavailable'
-          ? '이 형식을 미리 볼 수 있는 Windows 미리보기 프로그램이 설치돼 있지 않습니다.'
-          : `Windows 미리보기를 표시하지 못했습니다(${result.message ?? '알 수 없는 오류'}).`
+        result.message === 'internet-zone'
+          ? '인터넷에서 받은 파일이라 보안을 위해 Windows 미리보기를 사용하지 않습니다.'
+          : result.status === 'unavailable'
+            ? '이 형식을 미리 볼 수 있는 Windows 미리보기 프로그램이 설치돼 있지 않습니다.'
+            : `Windows 미리보기를 표시하지 못했습니다(${result.message ?? '알 수 없는 오류'}).`
       )
     }
     const mod = await this.loadFallback()

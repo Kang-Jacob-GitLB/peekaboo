@@ -53,7 +53,17 @@ internal sealed class NativePreviewHost : IDisposable
     private long _lastUse;           // STA 전용, Environment.TickCount64
     private bool _releaseScheduled;  // STA 전용
 
-    public NativePreviewHost(Action<int, NativePreviewStatus, string?> reply) => _reply = reply;
+    public NativePreviewHost(Action<int, NativePreviewStatus, string?> reply)
+    {
+        _reply = reply;
+        // 렌더러가 넘기는 rect 는 물리 픽셀이고 부모(Electron)는 Per-Monitor V2 다. 이 스레드가 DPI 비인식이면
+        // 컨테이너 창 좌표가 배율만큼 다시 변환될 수 있으므로, 창을 만들기 전에 스레드 DPI 인식을 맞춘다.
+        _sta.Post(() =>
+        {
+            if (PInvoke.SetThreadDpiAwarenessContext(Windows.Win32.UI.HiDpi.DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == default)
+                Log.Warn("SetThreadDpiAwarenessContext(PMv2) failed");
+        });
+    }
 
     public void Open(int id, string path, nint parent, RECT rect, bool dark)
     {
@@ -110,7 +120,9 @@ internal sealed class NativePreviewHost : IDisposable
             handler.DoPreview();
             return (NativePreviewStatus.Shown, null);
         }
-        catch (Exception e) when (e is COMException or InvalidCastException or NotImplementedException or UnauthorizedAccessException or ArgumentException)
+        // HRESULT 는 FileNotFound/OutOfMemory 등 여러 예외 형식으로 바뀌어 오므로 전부 잡는다.
+        // 여기서 새면 응답이 없어 호스트가 타임아웃까지 기다리고 컨테이너 창이 남는다.
+        catch (Exception e)
         {
             Log.Warn($"preview handler {clsid} failed for {Path.GetExtension(path)}: 0x{e.HResult:X8} {e.Message}");
             Unload();
@@ -211,7 +223,8 @@ internal sealed class NativePreviewHost : IDisposable
             var iid = typeof(IShellItem).GUID;
             object item;
             fixed (char* p = path) PInvoke.SHCreateItemFromParsingName((PCWSTR)p, null, &iid, out item).ThrowOnFailure();
-            withItem.Initialize((IShellItem)item, (uint)STGM.STGM_READ);
+            try { withItem.Initialize((IShellItem)item, (uint)STGM.STGM_READ); }
+            finally { Marshal.ReleaseComObject(item); } // 핸들러가 필요하면 자체 참조를 잡는다
         }
         else if (handler is IInitializeWithFile withFile)
         {
@@ -239,15 +252,18 @@ internal sealed class NativePreviewHost : IDisposable
         var handler = _handler;
         _handler = null;
         _currentId = 0;
+        // 단계마다 독립적으로 정리한다 — 한 단계가 실패해도 창·스트림이 남지 않게
         if (handler is not null)
         {
             try { handler.Unload(); }
-            catch (Exception e) when (e is COMException or NotImplementedException) { Log.Warn($"preview Unload failed: {e.Message}"); }
-            Marshal.FinalReleaseComObject(handler);
+            catch (Exception e) { Log.Warn($"preview Unload failed: {e.Message}"); }
+            try { Marshal.FinalReleaseComObject(handler); }
+            catch (Exception e) { Log.Warn($"preview handler release failed: {e.Message}"); }
         }
         if (_stream is not null)
         {
-            Marshal.FinalReleaseComObject(_stream);
+            try { Marshal.FinalReleaseComObject(_stream); }
+            catch (Exception e) { Log.Warn($"preview stream release failed: {e.Message}"); }
             _stream = null;
         }
         if (!_container.IsNull)
@@ -270,18 +286,19 @@ internal sealed class NativePreviewHost : IDisposable
         var module = PInvoke.GetModuleHandle((PCWSTR)null);
         if (_wndProc is null)
         {
-            _wndProc = ContainerProc;
+            WNDPROC proc = ContainerProc;
             fixed (char* name = ContainerClass)
             {
                 var wc = new WNDCLASSEXW
                 {
                     cbSize = (uint)sizeof(WNDCLASSEXW),
-                    lpfnWndProc = _wndProc,
+                    lpfnWndProc = proc,
                     hInstance = (HINSTANCE)module.Value,
                     lpszClassName = name,
                 };
                 if (PInvoke.RegisterClassEx(in wc) == 0) throw new COMException("RegisterClassEx failed", Marshal.GetHRForLastWin32Error());
             }
+            _wndProc = proc; // 등록 성공 후에만 — 실패하면 다음 open 에서 다시 등록을 시도한다
         }
         _background = PInvoke.CreateSolidBrush(new COLORREF(dark ? 0x00202020u : 0x00F3F3F3u));
         var hwnd = PInvoke.CreateWindowEx(0, ContainerClass, null,
@@ -305,11 +322,18 @@ internal sealed class NativePreviewHost : IDisposable
     public void Dispose()
     {
         _latestId = 0;
+        // 종료 전에 Unload 가 실제로 끝나야 핸들러 프로세스가 파일·스트림을 놓는다(DoPreview 중이면 그 뒤에 실행됨)
+        using var done = new ManualResetEventSlim();
         _sta.Post(() =>
         {
-            Unload();
-            foreach (var clsid in _factories.Keys.ToList()) DropFactory(clsid);
+            try
+            {
+                Unload();
+                foreach (var clsid in _factories.Keys.ToList()) DropFactory(clsid);
+            }
+            finally { done.Set(); }
         });
+        if (!done.Wait(3000)) Log.Warn("preview host did not unload within 3s");
         _sta.Dispose();
     }
 }

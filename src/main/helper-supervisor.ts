@@ -53,10 +53,12 @@ export class HelperSupervisor extends EventEmitter<HelperEvents> {
     this.launch()
   }
 
-  send(msg: HostMessage): void {
+  /** 헬퍼가 떠 있지 않으면 보내지 않고 false */
+  send(msg: HostMessage): boolean {
     const stdin = this.child?.stdin
-    if (!stdin || stdin.destroyed) return
+    if (!stdin || stdin.destroyed) return false
     stdin.write(JSON.stringify(msg) + '\n')
+    return true
   }
 
   stop(): void {

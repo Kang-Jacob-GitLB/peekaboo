@@ -86,3 +86,5 @@ DeleteObject
 WM_ERASEBKGND
 CoGetClassObject
 IClassFactory
+SetThreadDpiAwarenessContext
+DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2

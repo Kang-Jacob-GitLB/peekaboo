@@ -17,7 +17,12 @@ interface Slot {
   /** 0 = 미렌더, 1 = 진행 중, 2 = 완료 */
   state: 0 | 1 | 2
   task?: RenderTask
+  /** 렌더/비우기마다 올라가는 세대 번호. 오래된 비동기 렌더는 번호가 달라 결과를 버린다. */
+  gen: number
 }
+
+// CMap·표준 폰트·wasm 은 렌더러 출력의 pdfjs/ 아래에 같이 싣는다(electron.vite.config.ts). dev/file:// 모두 문서 기준 상대 경로.
+const assetUrl = (dir: string) => new URL(`./pdfjs/${dir}/`, document.baseURI).href
 
 export function create(): PreviewPlugin {
   let loadingTask: PDFDocumentLoadingTask | undefined
@@ -30,7 +35,13 @@ export function create(): PreviewPlugin {
       if (signal.aborted) return
 
       // pdfjs-dist 6.x 는 eval 경로가 제거돼 unsafe-eval 없이 동작한다(isEvalSupported 옵션 없음).
-      loadingTask = pdfjs.getDocument({ data: new Uint8Array(data) })
+      loadingTask = pdfjs.getDocument({
+        data: new Uint8Array(data),
+        cMapUrl: assetUrl('cmaps'),
+        cMapPacked: true,
+        standardFontDataUrl: assetUrl('standard_fonts'),
+        wasmUrl: assetUrl('wasm'),
+      })
       // 암호/손상 PDF 는 여기서 reject → app.ts 가 폴백으로 넘긴다.
       const pdf: PDFDocumentProxy = await loadingTask.promise
       if (signal.aborted) return
@@ -52,12 +63,23 @@ export function create(): PreviewPlugin {
         s.el.style.height = `${Math.floor(base.height * scale)}px`
       }
 
+      // 화면 밖으로 나간 페이지의 렌더를 취소하고 캔버스 메모리를 반납한다.
+      const evict = (s: Slot) => {
+        s.gen++
+        s.task?.cancel()
+        s.task = undefined
+        s.canvas.width = 0
+        s.canvas.height = 0
+        s.state = 0
+      }
+
       const renderPage = async (s: Slot) => {
         if (s.state !== 0) return
         s.state = 1
+        const gen = ++s.gen
         try {
           const page = await pdf.getPage(s.num)
-          if (signal.aborted || s.state !== 1) return
+          if (signal.aborted || gen !== s.gen) return
           const scale = fitScale()
           const css = page.getViewport({ scale })
           const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
@@ -66,12 +88,13 @@ export function create(): PreviewPlugin {
           s.canvas.height = Math.floor(vp.height)
           s.el.style.width = `${Math.floor(css.width)}px`
           s.el.style.height = `${Math.floor(css.height)}px`
-          s.task = page.render({ canvas: s.canvas, viewport: vp })
-          await s.task.promise
-          s.state = 2
+          const task = page.render({ canvas: s.canvas, viewport: vp })
+          s.task = task
+          await task.promise
+          if (gen === s.gen) s.state = 2
         } catch {
-          // 취소(리사이즈) 또는 개별 페이지 실패 — 다시 보이면 재시도한다.
-          s.state = 0
+          // 취소(화면 밖/리사이즈)는 evict 가 이미 정리했다. 개별 페이지 실패만 되돌려 다시 보이면 재시도한다.
+          if (gen === s.gen) evict(s)
         }
       }
 
@@ -79,10 +102,12 @@ export function create(): PreviewPlugin {
         (entries) => {
           for (const e of entries) {
             const s = slotOf.get(e.target)
-            if (e.isIntersecting && s) void renderPage(s)
+            if (!s) continue
+            if (e.isIntersecting) void renderPage(s)
+            else if (s.state !== 0) evict(s)
           }
         },
-        // 화면 밖 한 화면 정도는 미리 그려 둔다.
+        // 화면 밖 한 화면 정도는 미리 그려 두고, 그 바깥으로 벗어나면 비운다.
         { root: container, rootMargin: '100% 0px' }
       )
 
@@ -92,7 +117,7 @@ export function create(): PreviewPlugin {
         el.className = 'pdf-page'
         const canvas = document.createElement('canvas')
         el.append(canvas)
-        const s: Slot = { num: i, el, canvas, state: 0 }
+        const s: Slot = { num: i, el, canvas, state: 0, gen: 0 }
         placeholder(s)
         slots.push(s)
         slotOf.set(el, s)
@@ -107,8 +132,7 @@ export function create(): PreviewPlugin {
         if (Math.abs(w - lastW) < 2) return
         lastW = w
         for (const s of slots) {
-          s.task?.cancel()
-          s.state = 0
+          evict(s)
           placeholder(s)
           observer?.unobserve(s.el)
           observer?.observe(s.el)

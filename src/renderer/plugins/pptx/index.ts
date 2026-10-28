@@ -3,6 +3,7 @@ import type { PreviewPlugin, RenderContext } from '../types'
 import { readBinary } from '../read-binary'
 
 const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main'
 const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 const IMAGE_MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp',
@@ -26,6 +27,35 @@ function paragraphs(doc: Document): string[] {
   return out
 }
 
+/** 슬라이드 경로를 presentation.xml 의 p:sldIdLst 순서로. 읽지 못하면 파일 이름 번호순. */
+async function orderedSlidePaths(zip: JSZip): Promise<string[]> {
+  const byNumber = Object.keys(zip.files)
+    .map((p) => ({ p, m: /^ppt\/slides\/slide(\d+)\.xml$/.exec(p) }))
+    .filter((x): x is { p: string; m: RegExpExecArray } => !!x.m)
+    .sort((a, b) => Number(a.m[1]) - Number(b.m[1]))
+    .map((x) => x.p)
+  try {
+    const presFile = zip.file('ppt/presentation.xml')
+    const relsFile = zip.file('ppt/_rels/presentation.xml.rels')
+    if (!presFile || !relsFile) return byNumber
+    const pres = parseXml(await presFile.async('string'))
+    const rels = parseXml(await relsFile.async('string'))
+    const targets = new Map<string, string>()
+    for (const r of Array.from(rels.getElementsByTagName('Relationship'))) {
+      targets.set(r.getAttribute('Id') ?? '', r.getAttribute('Target') ?? '')
+    }
+    const ordered: string[] = []
+    for (const id of Array.from(pres.getElementsByTagNameNS(NS_P, 'sldId'))) {
+      const target = targets.get(id.getAttributeNS(NS_R, 'id') ?? '')
+      const path = target && resolvePath('ppt', target)
+      if (path && zip.file(path) && !ordered.includes(path)) ordered.push(path)
+    }
+    return ordered.length ? ordered : byNumber
+  } catch {
+    return byNumber
+  }
+}
+
 export function create(): PreviewPlugin {
   const urls: string[] = []
   return {
@@ -34,11 +64,7 @@ export function create(): PreviewPlugin {
       const zip = await JSZip.loadAsync(await readBinary(ctx))
       if (signal.aborted) return
 
-      const slidePaths = Object.keys(zip.files)
-        .map((p) => ({ p, m: /^ppt\/slides\/slide(\d+)\.xml$/.exec(p) }))
-        .filter((x): x is { p: string; m: RegExpExecArray } => !!x.m)
-        .sort((a, b) => Number(a.m[1]) - Number(b.m[1]))
-        .map((x) => x.p)
+      const slidePaths = await orderedSlidePaths(zip)
       if (!slidePaths.length) throw new Error('슬라이드를 찾을 수 없습니다.')
 
       container.classList.add('pptx-view')
@@ -60,6 +86,13 @@ export function create(): PreviewPlugin {
         no.className = 'pptx-no'
         no.textContent = String(i + 1)
         card.append(no)
+        // 숨긴 슬라이드(<p:sld show="0">)도 보여 주되 표시를 붙인다.
+        if (doc.documentElement.getAttribute('show') === '0') {
+          card.style.opacity = '0.6'
+          no.textContent = `${i + 1} (숨김)`
+          no.style.width = 'auto'
+          no.style.whiteSpace = 'nowrap'
+        }
 
         const body = document.createElement('div')
         body.className = 'pptx-body'

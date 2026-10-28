@@ -72,13 +72,16 @@ function buildTable(sheet: XLSX.WorkSheet, notice: HTMLElement): HTMLTableElemen
   const lastRow = range.s.r + Math.min(rows, MAX_ROWS) - 1
   const lastCol = range.s.c + Math.min(cols, MAX_COLS) - 1
 
-  // 병합 셀: 시작 셀에만 span 을 주고 나머지는 건너뛴다.
+  // 병합 셀: 시작 셀에만 span 을 주고 나머지는 건너뛴다. 표시 범위(lastRow/lastCol)로 잘라 거대 병합(A1:XFD1048576)에도 즉시 끝나게 한다.
   const spans = new Map<string, { rs: number; cs: number }>()
   const covered = new Set<string>()
   for (const m of sheet['!merges'] ?? []) {
-    spans.set(`${m.s.r},${m.s.c}`, { rs: m.e.r - m.s.r + 1, cs: m.e.c - m.s.c + 1 })
-    for (let r = m.s.r; r <= m.e.r; r++)
-      for (let c = m.s.c; c <= m.e.c; c++) if (r !== m.s.r || c !== m.s.c) covered.add(`${r},${c}`)
+    if (m.s.r > lastRow || m.s.c > lastCol) continue
+    const er = Math.min(m.e.r, lastRow)
+    const ec = Math.min(m.e.c, lastCol)
+    spans.set(`${m.s.r},${m.s.c}`, { rs: er - m.s.r + 1, cs: ec - m.s.c + 1 })
+    for (let r = m.s.r; r <= er; r++)
+      for (let c = m.s.c; c <= ec; c++) if (r !== m.s.r || c !== m.s.c) covered.add(`${r},${c}`)
   }
 
   const head = table.createTHead().insertRow()

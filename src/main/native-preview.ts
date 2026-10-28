@@ -17,12 +17,16 @@ export class NativePreviewBridge {
   private current: number | null = null
   private pending = new Map<number, { resolve: (r: NativePreviewResult) => void; timer: NodeJS.Timeout }>()
 
-  constructor(private readonly send: (msg: HostMessage) => void) {}
+  constructor(private readonly send: (msg: HostMessage) => boolean) {}
 
   open(path: string, hwnd: number, rect: PixelRect, dark: boolean): Promise<NativePreviewResult> {
     const id = this.nextId++
     this.current = id
-    this.send({ v: 1, type: 'nativePreview.open', id, path, hwnd, rect, dark })
+    // 헬퍼가 죽었거나 재시작 중이면 타임아웃까지 기다리지 않고 바로 자체 렌더러로 넘긴다
+    if (!this.send({ v: 1, type: 'nativePreview.open', id, path, hwnd, rect, dark })) {
+      this.current = null
+      return Promise.resolve({ handle: id, status: 'failed', message: 'helper not running' })
+    }
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(id)

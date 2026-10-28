@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
 import type { ShowPayload } from '../shared/preview-api'
@@ -185,7 +185,11 @@ export class PreviewWindow {
     })
     ipcMain.handle(Channels.nativeOpen, async (e, path: string, rect: PixelRect) => {
       if (!fromPreview(e.sender) || !this.isAllowedPath(path) || !isRect(rect)) throw new Error('Forbidden')
-      const win = this.win!
+      // 인터넷에서 받은 파일(Mark of the Web)은 Office 등 외부 파서를 돌리지 않는다.
+      // 탐색기도 같은 이유로 이런 파일의 미리 보기 창을 막는다. 샌드박스된 자체 렌더러로 보낸다.
+      if (await isFromInternet(path)) return { handle: 0, status: 'unavailable', message: 'internet-zone' }
+      const win = this.win
+      if (!win || win.isDestroyed()) throw new Error('Forbidden')
       // 64비트 Windows 의 HWND 는 8바이트 버퍼로 온다. 실제 값은 32비트 범위라 Number 로 안전하다.
       const hwnd = Number(win.getNativeWindowHandle().readBigUInt64LE(0))
       return this.native.open(path, hwnd, rect, nativeTheme.shouldUseDarkColors)
@@ -209,4 +213,18 @@ function isRect(r: unknown): r is PixelRect {
   if (typeof r !== 'object' || r === null) return false
   const { x, y, width, height } = r as Record<string, unknown>
   return [x, y, width, height].every((n) => typeof n === 'number' && Number.isFinite(n)) && (width as number) >= 0 && (height as number) >= 0
+}
+
+/**
+ * NTFS 대체 데이터 스트림 Zone.Identifier 의 ZoneId 가 3(인터넷) 이상인지.
+ * 스트림이 없거나 읽을 수 없으면(로컬 파일, FAT32 등) false.
+ */
+async function isFromInternet(path: string): Promise<boolean> {
+  try {
+    const text = await readFile(`${path}:Zone.Identifier`, 'utf8')
+    const zone = /^\s*ZoneId\s*=\s*(\d+)/im.exec(text)
+    return zone !== null && Number(zone[1]) >= 3
+  } catch {
+    return false
+  }
 }
