@@ -24,6 +24,7 @@ macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현�
 
 - [x] 이미지: jpg, png, gif, webp, svg, bmp, ico, avif
 - [x] 텍스트 / 소스 코드 (구문 강조, UTF-8/UTF-16/CP949 자동 감지, 512KB까지)
+  — 모르는 확장자라도 앞부분 4KB 가 텍스트로 보이면 텍스트로 표시(`.list`, 사내 설정 파일 등)
 - [x] Markdown (HTML 태그는 표시하지 않음, 상대 경로 이미지는 대체 텍스트로 표시)
 - [x] PDF (pdf.js, 보이는 페이지만 렌더)
 - [x] 영상 / 오디오 (mp4·webm·mov·mkv, mp3·m4a·wav·ogg·opus·flac — Chromium 이 재생 가능한 코덱)
