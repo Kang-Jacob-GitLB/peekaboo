@@ -90,6 +90,10 @@ function start(): void {
       case 'nativePreview':
         native.onResult(msg.id, msg.status, msg.message)
         break
+      case 'foreground':
+        // 다른 앱으로 전환하면 닫는다. 미리보기 창 자신(사용자가 창을 클릭)은 이 프로세스의 창이므로 유지.
+        if (msg.pid !== process.pid && (preview.isOpen || pendingOpen.size > 0)) closePreview()
+        break
       case 'error':
         if (msg.id !== undefined) pendingOpen.delete(msg.id)
         break

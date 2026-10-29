@@ -17,6 +17,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | `pong` | `id` | `ping` 응답 |
 | `error` | `id?`, `code`, `message` | 복구 가능한 오류. `ELEVATED`(관리자 권한 창), `NO_VIEW`, `COM_FAIL`, `BAD_MESSAGE`, `INTERNAL` |
 | `nativePreview` | `id`, `status`: `shown`·`unavailable`·`failed`, `message?` | `nativePreview.open` 응답. `unavailable` = 등록된 미리보기 핸들러 없음 |
+| `foreground` | `pid` | 미리보기가 열린 동안 포그라운드가 셸(탐색기 창·바탕화면·작업 표시줄 등 explorer.exe) 밖의 창으로 넘어감. Electron 은 `pid` 가 자기 프로세스(미리보기 창 클릭)가 아니면 미리보기를 닫는다 |
 
 ## Electron → Helper
 

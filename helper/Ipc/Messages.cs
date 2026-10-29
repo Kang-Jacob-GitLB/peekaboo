@@ -89,6 +89,12 @@ internal static class Outgoing
         if (message is not null) w.WriteString("message", message);
     });
 
+    public static void Foreground(JsonLineChannel ch, uint pid) => ch.Send(w =>
+    {
+        w.WriteString("type", "foreground");
+        w.WriteNumber("pid", pid);
+    });
+
     public static void Error(JsonLineChannel ch, int? id, string code, string message) => ch.Send(w =>
     {
         w.WriteString("type", "error");

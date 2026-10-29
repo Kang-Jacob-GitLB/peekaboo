@@ -16,6 +16,7 @@ internal static class FocusInspector
 {
     private static readonly Dictionary<uint, bool> ElevationCache = new();
     private static readonly HashSet<uint> ElevationPending = new();
+    private static readonly HashSet<uint> ShellPids = new(); // 훅 스레드 전용
 
     /// <summary>
     /// 훅 콜백에서 호출되므로 COM 없이 가벼운 Win32 호출만 사용한다.
@@ -51,6 +52,31 @@ internal static class FocusInspector
     {
         var fg = PInvoke.GetForegroundWindow();
         return !fg.IsNull && SourceOf(fg) is not null;
+    }
+
+    /// <summary>
+    /// 포그라운드로 올라온 창이 셸(탐색기 창·바탕화면·작업 표시줄·Alt+Tab 등 explorer.exe) 쪽인지 판정한다.
+    /// 훅 스레드에서 불리므로 프로세스 이름 조회(OpenProcess) 대신 창 클래스와 PID 만 쓴다.
+    /// 탐색기 창/바탕화면을 본 적 있는 PID 를 기억해, "폴더 창을 별도 프로세스로" 설정에서 그 프로세스의 대화상자도 셸로 본다.
+    /// </summary>
+    public static unsafe bool IsShellWindow(HWND hwnd, out uint pid)
+    {
+        pid = 0;
+        var root = PInvoke.GetAncestor(hwnd, GET_ANCESTOR_FLAGS.GA_ROOT);
+        if (root.IsNull) root = hwnd;
+        uint p;
+        if (PInvoke.GetWindowThreadProcessId(root, &p) == 0) return true; // 판단할 수 없으면 셸로 간주(닫지 않음)
+        pid = p;
+        if (SourceOf(root) is not null)
+        {
+            if (ShellPids.Count > 64) ShellPids.Clear();
+            ShellPids.Add(p);
+            return true;
+        }
+        var shell = PInvoke.GetShellWindow();
+        uint shellPid;
+        if (!shell.IsNull && PInvoke.GetWindowThreadProcessId(shell, &shellPid) != 0 && shellPid == p) return true;
+        return ShellPids.Contains(p);
     }
 
     private static SelectionSource? SourceOf(HWND fg) => ClassOf(fg) switch

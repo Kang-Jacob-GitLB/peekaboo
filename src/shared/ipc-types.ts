@@ -37,6 +37,8 @@ export type HelperMessage =
   | { v: 1; type: 'pong'; id: number }
   | { v: 1; type: 'error'; id?: number; code: HelperErrorCode; message: string }
   | { v: 1; type: 'nativePreview'; id: number; status: NativePreviewStatus; message?: string }
+  /** 미리보기가 열린 동안 포그라운드가 셸(탐색기·바탕화면·작업 표시줄) 밖의 창으로 넘어감. pid = 그 창의 프로세스 */
+  | { v: 1; type: 'foreground'; pid: number }
 
 // ---- Electron -> Helper ----
 export type HostMessage =

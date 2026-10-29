@@ -12,6 +12,7 @@ internal interface IHelperSink
     void Key(KeyName key, bool consumed);
     void Selection(int? id, SelectionResult selection);
     void Error(int? id, string code, string message);
+    void Foreground(uint pid);
 }
 
 /// <summary>
@@ -41,7 +42,7 @@ internal sealed class HelperCore : IDisposable
     {
         _sink = sink;
         _watcher = new SelectionWatcher(OnSelectionChangedEvent);
-        _hook = new KeyboardHook(OnKey, FocusInspector.PrimeForWindow);
+        _hook = new KeyboardHook(OnKey, OnForeground);
     }
 
     public bool PreviewOpen => _previewOpen;
@@ -150,6 +151,17 @@ internal sealed class HelperCore : IDisposable
         }
         if (consume) _swallowed.Add(vk);
         return consume;
+    }
+
+    /// <summary>
+    /// 포그라운드가 셸 밖의 창으로 넘어가면 알린다(미리보기가 열려 있을 때만). 미리보기 창 자신인지는 호스트가 PID 로 거른다.
+    /// 셸 PID 학습을 위해 판정은 미리보기가 닫혀 있어도 매번 한다.
+    /// </summary>
+    private void OnForeground(Windows.Win32.Foundation.HWND hwnd)
+    {
+        FocusInspector.PrimeForWindow(hwnd);
+        if (hwnd.IsNull || FocusInspector.IsShellWindow(hwnd, out var pid)) return;
+        if (_previewOpen) _sink.Foreground(pid);
     }
 
     private static KeyName? MapKey(uint vk) => (VIRTUAL_KEY)vk switch

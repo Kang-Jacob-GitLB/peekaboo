@@ -15,6 +15,7 @@ GetGUIThreadInfo
 GetClassName
 GetParent
 GetAncestor
+GetShellWindow
 IsWindowVisible
 FindWindowEx
 GetKeyState
