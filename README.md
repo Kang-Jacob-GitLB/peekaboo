@@ -44,6 +44,17 @@ macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현�
 > "Windows의 PC 보호" 경고가 뜹니다. **추가 정보 → 실행** 을 누르면 설치됩니다.
 > 불안하다면 아래 방법으로 소스에서 직접 빌드할 수 있습니다.
 
+### 업데이트
+
+0.2.0 부터는 앱이 스스로 업데이트합니다.
+
+- 시작 10초 뒤와 이후 6시간마다 [Releases](../../releases) 에서 새 버전을 확인하고, 있으면 백그라운드로 내려받습니다.
+- 다 받으면 알림이 뜹니다. 알림이나 트레이 메뉴의 **다시 시작하여 업데이트** 를 누르면 바로 설치·재실행하고,
+  그냥 두면 Peekaboo 를 끌 때 조용히 설치됩니다.
+- 트레이 메뉴의 **업데이트 확인** 으로 바로 확인할 수도 있습니다.
+- 설치 파일은 릴리스의 `latest.yml` 에 적힌 SHA-512 와 맞는지 검사한 뒤 실행합니다.
+- 0.1.0 에는 업데이트 기능이 없어 0.2.0 은 직접 받아 설치해야 합니다.
+
 ## 빌드
 
 필요한 도구
@@ -77,6 +88,24 @@ $env:PEEKABOO_PREVIEW = "C:\work\notes.md"; npx electron .
 ```
 
 로그(`%APPDATA%\Peekaboo\logs\peekaboo.log`)에 `shown in …ms`, `rendered … in …ms since key` 로 표시 지연이 기록됩니다.
+
+## 기여·릴리스
+
+- `main` 은 룰셋으로 보호됩니다: PR 필수, 필수 검사 `Typecheck · Build`(`.github/workflows/build.yml`) 통과, squash 머지만 허용.
+- **PR 제목은 [Conventional Commits](https://www.conventionalcommits.org/ko/) 형식**으로 씁니다. squash 머지라 PR 제목이 곧 `main` 의 커밋 제목이고, 자동 릴리스가 이것으로 버전을 정합니다.
+
+| PR 제목 | 다음 버전 |
+| --- | --- |
+| `feat: …` | minor (0.2.0 → 0.3.0) |
+| `fix: …` · `perf: …` · `style: …` | patch (0.2.0 → 0.2.1) |
+| `feat!: …` 또는 본문에 `BREAKING CHANGE:` | major |
+| `docs:` · `build:` · `ci:` · `chore:` · `test:` · `refactor:` | 릴리스하지 않음 |
+
+- **매일 00:00(KST)** `nightly-release.yml` 이 마지막 태그 이후 `main` 커밋을 보고, 위 표에서 릴리스할 변경이 있으면
+  Windows 설치본을 빌드해 태그와 Release(설치본 + `latest.yml` + blockmap)를 만듭니다. 문서·빌드 설정만 바뀐 날은 건너뜁니다.
+- 바로 릴리스하려면 Actions → `nightly-release` → **Run workflow**(올림 단계 선택, `dry_run` 으로 계산만 해 볼 수도 있음).
+- 다음 버전 미리 보기: `npm run next-version`
+- 버전은 태그로만 관리합니다. `package.json`·헬퍼 csproj 의 `0.0.0` 은 그대로 두세요(빌드할 때 태그 버전이 들어갑니다).
 
 ## 구조
 

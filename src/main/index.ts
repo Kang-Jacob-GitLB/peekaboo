@@ -7,6 +7,7 @@ import { PreviewWindow } from './preview-window'
 import { handlePeekProtocol, registerPeekScheme } from './protocol'
 import { getSettings } from './settings'
 import { AppTray } from './tray'
+import { Updater } from './updater'
 
 const log = createLogger('main')
 
@@ -25,17 +26,21 @@ if (!app.requestSingleInstanceLock()) {
 
 function start(): void {
   log.info(`Peekaboo ${app.getVersion()} starting (packaged=${app.isPackaged})`)
+  // 알림이 "Peekaboo" 로 뜨도록 설치 프로그램이 만든 바로 가기와 같은 AppUserModelID 를 쓴다(electron-builder 의 appId)
+  app.setAppUserModelId('io.github.kang-jacob-gitlb.peekaboo')
 
   const helper = new HelperSupervisor()
   const native = new NativePreviewBridge((msg) => helper.send(msg))
   const preview = new PreviewWindow(() => getSettings().keepWarmSeconds, native)
   handlePeekProtocol((path) => preview.isAllowedPath(path))
 
+  const updater = new Updater(() => tray.refreshUpdate())
   const tray = new AppTray((enabled) => {
     helper.send({ v: 1, type: 'config', enabled })
     if (!enabled) closePreview()
-  })
+  }, updater)
   helper.on('status', (s) => tray.setStatus(s))
+  updater.start()
 
   let nextRequestId = 1
   /** getSelection 요청 id → 키 수신 시각 */

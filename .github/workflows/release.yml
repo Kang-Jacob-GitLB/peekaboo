@@ -1,0 +1,203 @@
+name: release
+
+# Windows 설치본을 빌드해 GitHub Release 에 첨부한다. 세 가지로 실행된다:
+#   1) 사람이 semver 태그(v0.2.0, 프리릴리스 v0.3.0-rc.1)를 push — 태그가 이미 있고, 노트는 그 태그 메시지
+#   2) nightly-release.yml 이 재사용 워크플로로 호출(workflow_call) — 버전·대상 커밋·노트를 입력으로 받고,
+#      빌드가 성공한 뒤 발행 잡에서 annotated 태그를 만든다(빌드가 실패하면 태그도 남지 않는다)
+#   3) 수동 실행(workflow_dispatch) — 태그 없이 설치본만 빌드해 아티팩트로 올린다(점검용, 발행하지 않음)
+# 버전의 기준은 태그 하나다: 저장소의 package.json·헬퍼 csproj 는 0.0.0 으로 두고, 빌드 직전에 버전을 넣는다(커밋하지 않음).
+# 주의: GITHUB_TOKEN 으로 push 한 태그는 이 워크플로를 다시 트리거하지 않는다 — 그래서 nightly 가 workflow_call 로 부른다.
+# 주의: tags 필터는 정규식이 아니라 glob 이다.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: "릴리스할 버전(접두사 v 없이, 예: 0.3.0)"
+        type: string
+        required: true
+      sha:
+        description: "빌드·태그할 커밋"
+        type: string
+        required: true
+      notes:
+        description: "릴리스 노트(마크다운, 첫 줄은 태그 제목)"
+        type: string
+        required: true
+
+permissions:
+  contents: read # 쓰기 권한은 Release 를 만드는 release 잡에만 준다
+
+jobs:
+  # ── Windows 설치본 빌드 ──────────────────────────────────────────────
+  # 설치본(NSIS) 외에 앱 안 업데이트용 메타데이터(release/latest.yml: 버전·sha512)와 blockmap(차등 다운로드)도 올린다.
+  #   electron-builder.yml 의 publish 설정 덕분에 --publish never 여도 생성된다.
+  build:
+    name: 빌드 (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # 재사용 호출이면 계산한 그 커밋을, 아니면 이 실행의 ref(태그 등)를 빌드한다
+          ref: ${{ inputs.sha || github.ref }}
+          persist-credentials: false
+
+      # 재사용 호출은 입력 버전, 태그 push 는 태그 버전, 수동 실행은 0.0.0-ci.<실행 번호>.
+      - name: 버전 결정
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-ci.${{ github.run_number }}"
+          fi
+          # semver(MAJOR.MINOR.PATCH[-pre]) 가 아니면 실패한다 — 설치본 이름·업데이트 비교가 이 값에 기대므로
+          if ! echo "$VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::semver 가 아닌 버전입니다: $VERSION ($GITHUB_REF_NAME)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "버전=$VERSION"
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: .NET 설정
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 의존성 설치
+        run: npm ci
+
+      # 앱(app.getVersion·설치본 이름·latest.yml)은 package.json 을, 헬퍼(ready 메시지)는 어셈블리 버전을 읽는다
+      - name: 버전 넣기 (커밋하지 않음)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm pkg set version="$VERSION"
+
+      - name: 헬퍼 빌드
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        # 어셈블리 버전에는 프리릴리스 꼬리표를 넣을 수 없어 숫자 부분만 쓴다(InformationalVersion 에는 전체)
+        run: npm run helper:build -- -p:Version="${VERSION%%-*}" -p:InformationalVersion="$VERSION"
+
+      - name: 빌드 (electron-vite)
+        run: npm run build
+
+      # --publish never: 태그 트리거 + 토큰이 있는 상태에서 electron-builder 가 스스로 Release 를 만들어
+      #   아래 release 잡과 충돌하는 것을 막는다. 코드 서명 인증서가 없어 미서명이다.
+      - name: 패키징 (electron-builder)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --win --publish never
+
+      # 앱 안 업데이트가 읽는 메타데이터(버전·sha512)가 없으면 이 잡에서 바로 실패한다(수동 점검 실행도 잡아낸다)
+      - name: 업데이트 메타데이터 확인
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ls -la release
+          test -f release/latest.yml || { echo "::error::release/latest.yml 이 없습니다"; exit 1; }
+          grep -q "^version: $VERSION$" release/latest.yml || { echo "::error::latest.yml 의 버전이 $VERSION 이 아닙니다"; cat release/latest.yml; exit 1; }
+
+      - name: 설치본 아티팩트 업로드
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: installers-win
+          path: |
+            release/*.exe
+            release/latest.yml
+            release/*.blockmap
+          if-no-files-found: error
+
+  # ── 릴리스 발행 ─────────────────────────────────────────────────────
+  release:
+    name: 릴리스 발행
+    needs: build
+    # 태그 push 이거나 재사용 호출일 때만 발행한다(수동 실행은 빌드 점검만)
+    if: github.ref_type == 'tag' || inputs.version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # 발행할 태그 이름: 재사용 호출이면 v<입력 버전>, 태그 push 면 그 태그
+      TAG: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.sha || github.ref }}
+          fetch-depth: 0
+          # 재사용 호출만 태그를 push 해야 해서 자격 증명이 필요하다
+          persist-credentials: ${{ inputs.version && 'true' || 'false' }}
+
+      - name: 설치본 아티팩트 다운로드
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: installers-*
+          path: installers
+          merge-multiple: true
+
+      - name: 첨부할 설치본 목록
+        run: ls -la installers
+
+      # 재사용 호출: 빌드가 성공한 지금에서야 annotated 태그를 만든다(노트 = 태그 메시지).
+      # 노트는 커밋 제목에서 만든 문자열이라 셸에 직접 끼워 넣지 않고 환경 변수로 넘긴다.
+      - name: 태그 만들기·push (재사용 호출)
+        if: inputs.version
+        env:
+          NOTES: ${{ inputs.notes }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG 태그가 이미 있습니다"
+            exit 1
+          fi
+          printf '%s\n' "$NOTES" > tag_message.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 기본 cleanup(strip)은 '#' 으로 시작하는 줄을 주석으로 지워 노트의 '## 새 기능' 같은 제목이 사라진다
+          git tag -a --cleanup=verbatim "$TAG" -F tag_message.md "$SHA"
+          git push origin "refs/tags/$TAG"
+
+      # 릴리스 노트: annotated 태그 메시지. 없으면 GitHub 자동 생성 노트로 대신한다
+      - name: 릴리스 노트 추출
+        id: notes
+        run: |
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}" || true
+          : > release_notes.md
+          if [ "$(git cat-file -t "$TAG" 2>/dev/null)" = "tag" ]; then
+            git tag -l --format='%(contents)' "$TAG" > release_notes.md
+          fi
+          if [ -s release_notes.md ]; then
+            echo "fallback=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "fallback=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 릴리스 생성 + 설치본 첨부
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body_path: release_notes.md
+          generate_release_notes: ${{ steps.notes.outputs.fallback == 'true' }}
+          # 하이픈이 든 태그(v0.3.0-rc.1)는 프리릴리스로 표시 — 앱은 프리릴리스를 쓰는 경우에만 프리릴리스로 업데이트한다
+          prerelease: ${{ contains(env.TAG, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            installers/*

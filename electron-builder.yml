@@ -16,8 +16,17 @@ win:
     - target: nsis
       arch: [x64]
   icon: resources/icon.png
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
 nsis:
   oneClick: false
+  # 사용자 영역 설치라 앱 안 업데이트가 관리자 권한(UAC) 없이 설치된다. 바꾸면 업데이트 동작이 달라진다.
   perMachine: false
   allowToChangeInstallationDirectory: true
-publish: null
+  # resources/installer.nsh — 설치·제거 전에 헬퍼 exe 를 끝낸다(파일 교체 실패 방지)
+# 앱 안 업데이트(electron-updater) 피드. 이 설정이 있어야 앱에 app-update.yml 이 들어가고,
+# --publish never 여도 release/latest.yml(버전·sha512)과 blockmap 이 만들어진다. 업로드는 릴리스 워크플로가 한다.
+# 코드 서명이 없으므로 publisherName 은 두지 않는다 — 무결성은 latest.yml 의 sha512 로 검증된다.
+publish:
+  provider: github
+  owner: Kang-Jacob-GitLB
+  repo: peekaboo

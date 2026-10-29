@@ -1,0 +1,57 @@
+name: build
+
+# PR 게이트: main 룰셋의 필수 상태 검사(아래 job 의 name)가 이 결과를 본다.
+# job name 을 바꾸면 룰셋의 required_status_checks context 도 함께 바꿀 것.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck · Build
+    # 헬퍼가 net8.0-windows(CsWin32)라 Windows 러너에서 빌드한다
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: .NET 설정
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      # 타입 검사·번들만 하므로 Electron 바이너리는 받지 않는다
+      - name: 의존성 설치
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 빌드 (electron-vite)
+        run: npm run build
+
+      - name: 헬퍼 빌드 (트리밍 경고까지 확인)
+        run: npm run helper:build
+
+      # 얕은 체크아웃이라 태그가 없어 실제 계산은 nightly-release 에서 한다. 여기서는 문법만 본다.
+      - name: 다음 버전 계산 스크립트 문법 점검
+        run: node --check scripts/next-version.mjs

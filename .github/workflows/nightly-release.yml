@@ -1,0 +1,106 @@
+name: nightly-release
+
+# 매일 00:00(KST)에 마지막 정식 태그 이후 main 의 새 커밋을 보고 자동으로 릴리스한다.
+#   feat → minor · fix/perf/style → patch · type!/BREAKING CHANGE → major · 그 밖(ci/docs/chore/test/refactor)만 있으면 건너뜀
+#   판단은 scripts/next-version.mjs. main 은 squash 머지만 쓰므로 커밋 제목 = PR 제목이다(Conventional Commits).
+# 버전은 태그로만 정한다(package.json·헬퍼 csproj 는 0.0.0 고정). 버전 커밋을 만들지 않는다.
+# 한 번의 실행으로 끝낸다: plan 잡이 버전을 정하고, release 잡이 release.yml 을 재사용 워크플로로 불러
+# Windows 빌드 → (성공하면) annotated 태그 → Release 발행까지 한다. 빌드가 실패하면 태그도 남지 않으며,
+# 실패한 잡만 "Re-run failed jobs" 로 다시 돌리면 된다.
+# 주의: GitHub 의 예약 실행은 부하에 따라 수 분~수십 분 늦게 시작될 수 있다.
+on:
+  schedule:
+    - cron: "0 15 * * *" # 15:00 UTC = 00:00 KST
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "올림 단계(auto = 커밋 제목으로 판단)"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      dry_run:
+        description: "계산만 하고 태그·릴리스는 만들지 않음"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 겹쳐 실행되면 같은 버전을 두 번 만들 수 있다
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: 새 커밋 확인·다음 버전 계산
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.next.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.next.outputs.sha }}
+      notes: ${{ steps.next.outputs.notes }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0 # 태그와 전체 이력이 있어야 마지막 태그 이후 커밋을 센다
+          persist-credentials: false
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      # main 의 커밋이 PR 게이트(build.yml)를 통과했는지는 룰셋(PR + 필수 체크)이 보장한다.
+      # 계산한 그 커밋(sha)을 그대로 빌드·태그하므로, 계산 뒤 main 에 새 커밋이 들어와도 섞이지 않는다.
+      - name: 다음 버전 계산
+        id: next
+        run: |
+          node scripts/next-version.mjs --bump "${{ inputs.bump || 'auto' }}" --json > next.json
+          cat next.json
+          node -e '
+            const r = require("./next.json")
+            const fs = require("fs")
+            const { execFileSync } = require("child_process")
+            const out = process.env.GITHUB_OUTPUT
+            fs.appendFileSync(out, `release=${r.release}\nlast=${r.last}\n`)
+            if (r.release) {
+              const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
+              fs.appendFileSync(out, `version=${r.next}\nsha=${sha}\n`)
+              // 여러 줄 출력: 노트에 나올 수 없는 구분자를 쓴다
+              const delim = `NOTES_${Date.now()}_${Math.random().toString(36).slice(2)}`
+              fs.appendFileSync(out, `notes<<${delim}\n${r.notes}\n${delim}\n`)
+            }
+          '
+
+      - name: 요약
+        env:
+          RELEASE: ${{ steps.next.outputs.release }}
+          LAST: ${{ steps.next.outputs.last }}
+          VERSION: ${{ steps.next.outputs.version }}
+          NOTES: ${{ steps.next.outputs.notes }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### 야간 릴리스"
+            if [ "$RELEASE" = "true" ]; then
+              echo "$LAST → **v$VERSION**$([ "$DRY_RUN" = "true" ] && echo ' (dry run — 발행하지 않음)')"
+              echo
+              printf '%s\n' "$NOTES"
+            else
+              echo "$LAST 이후 릴리스할 변경이 없어 건너뜀"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: 빌드·태그·릴리스
+    needs: plan
+    if: needs.plan.outputs.release == 'true' && inputs.dry_run != true
+    permissions:
+      contents: write # 발행 잡이 태그를 push 하고 Release 를 만든다
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
+      sha: ${{ needs.plan.outputs.sha }}
+      notes: ${{ needs.plan.outputs.notes }}
