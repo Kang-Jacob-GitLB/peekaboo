@@ -1,4 +1,6 @@
-# Peekaboo
+<p align="center"><img src="resources/icon.png" width="128" alt="Peekaboo 아이콘"></p>
+
+<h1 align="center">Peekaboo</h1>
 
 Windows 탐색기에서 파일을 선택하고 **스페이스바**를 누르면 바로 미리보기 창이 뜨는 상주 프로그램입니다.
 macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현은 [QuickLook](https://github.com/QL-Win/QuickLook)(GPL-3.0)을 참고했습니다(아래 라이선스 참고).
