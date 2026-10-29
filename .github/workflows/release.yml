@@ -1,7 +1,8 @@
 name: release
 
 # Windows 설치본을 빌드해 GitHub Release 에 첨부한다. 세 가지로 실행된다:
-#   1) 사람이 semver 태그(v0.2.0, 프리릴리스 v0.3.0-rc.1)를 push — 태그가 이미 있고, 노트는 그 태그 메시지
+#   1) 사람이 semver 태그(v0.2.0, 프리릴리스 v0.3.0-beta.1)를 push — 태그가 이미 있고, 노트는 그 태그 메시지
+#      프리릴리스 꼬리표는 alpha·beta 만 쓴다: electron-updater 는 그 채널에서만 이후 정식 릴리스로 올라간다(rc 는 갇힌다)
 #   2) nightly-release.yml 이 재사용 워크플로로 호출(workflow_call) — 버전·대상 커밋·노트를 입력으로 받고,
 #      빌드가 성공한 뒤 발행 잡에서 annotated 태그를 만든다(빌드가 실패하면 태그도 남지 않는다)
 #   3) 수동 실행(workflow_dispatch) — 태그 없이 설치본만 빌드해 아티팩트로 올린다(점검용, 발행하지 않음)
@@ -62,9 +63,10 @@ jobs:
           else
             VERSION="0.0.0-ci.${{ github.run_number }}"
           fi
-          # semver(MAJOR.MINOR.PATCH[-pre]) 가 아니면 실패한다 — 설치본 이름·업데이트 비교가 이 값에 기대므로
-          if ! echo "$VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
-            echo "::error::semver 가 아닌 버전입니다: $VERSION ($GITHUB_REF_NAME)"
+          # MAJOR.MINOR.PATCH[-alpha.N|-beta.N] 가 아니면 실패한다 — 설치본 이름·업데이트 비교가 이 값에 기대므로.
+          # 수동 점검 빌드(0.0.0-ci.N)는 발행하지 않고, 앱도 이 버전에서는 업데이트를 끈다.
+          if ! echo "$VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta)(\.[0-9]+)?)?$|^0\.0\.0-ci\.[0-9]+$'; then
+            echo "::error::허용하지 않는 버전입니다: $VERSION ($GITHUB_REF_NAME) — X.Y.Z 또는 X.Y.Z-beta.N/alpha.N"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -129,8 +131,8 @@ jobs:
   release:
     name: 릴리스 발행
     needs: build
-    # 태그 push 이거나 재사용 호출일 때만 발행한다(수동 실행은 빌드 점검만)
-    if: github.ref_type == 'tag' || inputs.version
+    # 태그 push 이거나 재사용 호출일 때만 발행한다(수동 실행은 태그에서 돌려도 빌드 점검만)
+    if: github.event_name == 'push' || inputs.version
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,15 +191,26 @@ jobs:
             echo "fallback=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 릴리스 생성 + 설치본 첨부
+      # 초안으로 만들고 파일을 다 올린 뒤 공개한다 — 공개된 Release 에 latest.yml·설치본이 아직 없는 틈에
+      # 앱이 업데이트를 확인하면 404 로 실패하기 때문
+      - name: 릴리스 생성(초안) + 설치본 첨부
+        id: gh_release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
           body_path: release_notes.md
           generate_release_notes: ${{ steps.notes.outputs.fallback == 'true' }}
-          # 하이픈이 든 태그(v0.3.0-rc.1)는 프리릴리스로 표시 — 앱은 프리릴리스를 쓰는 경우에만 프리릴리스로 업데이트한다
+          draft: true
+          # 하이픈이 든 태그(v0.3.0-beta.1)는 프리릴리스로 표시 — 앱은 프리릴리스를 쓰는 경우에만 프리릴리스로 업데이트한다
           prerelease: ${{ contains(env.TAG, '-') }}
           fail_on_unmatched_files: true
           files: |
             installers/*
+
+      # 초안은 태그 이름으로 조회되지 않을 수 있어 생성 단계가 돌려준 id 로 공개한다
+      - name: 릴리스 공개
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.gh_release.outputs.id }}
+        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false --jq '.html_url'

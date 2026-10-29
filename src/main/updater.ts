@@ -35,9 +35,13 @@ export class Updater {
     return this.state
   }
 
-  /** 설치본에서만 동작한다(개발 실행에는 app-update.yml 이 없다). */
+  /**
+   * 릴리스 설치본에서만 동작한다. 개발 실행에는 app-update.yml 이 없고, 로컬 `npm run dist`(0.0.0)와
+   * CI 점검 빌드(0.0.0-ci.N)는 검증 중인 빌드가 최신 릴리스로 덮어써지지 않도록 끈다.
+   */
   get enabled(): boolean {
-    return app.isPackaged
+    const v = app.getVersion()
+    return app.isPackaged && v !== '0.0.0' && !v.startsWith('0.0.0-')
   }
 
   start(): void {
@@ -45,7 +49,8 @@ export class Updater {
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.allowDowngrade = false
-    // 프리릴리스(vX.Y.Z-rc.N)는 지금 프리릴리스를 쓰는 경우에만 받는다
+    // 프리릴리스(vX.Y.Z-beta.N)는 지금 프리릴리스를 쓰는 경우에만 받는다. electron-updater 는 alpha·beta 채널에서만
+    // 정식 릴리스로도 올라가므로 릴리스 워크플로가 프리릴리스 꼬리표를 alpha·beta 로 제한한다.
     autoUpdater.allowPrerelease = app.getVersion().includes('-')
     autoUpdater.logger = {
       info: (m: unknown) => log.info(String(m)),
@@ -62,8 +67,8 @@ export class Updater {
     })
     autoUpdater.on('update-available', (info) => {
       this.set({ kind: 'downloading', version: info.version, percent: 0 })
+      // manual 은 내려받기가 끝날 때까지 둔다 — 도중에 실패하면 알려야 한다
       if (this.manual) this.notify(`새 버전 ${info.version} 을 내려받는 중입니다`, '끝나면 다시 알려 드립니다.')
-      this.manual = false
     })
     autoUpdater.on('download-progress', (p) => {
       if (this.state.kind !== 'downloading') return
@@ -72,6 +77,7 @@ export class Updater {
       if (percent !== this.state.percent) this.set({ ...this.state, percent })
     })
     autoUpdater.on('update-downloaded', (info) => {
+      this.manual = false
       this.set({ kind: 'ready', version: info.version })
       if (this.notifiedVersion === info.version) return
       this.notifiedVersion = info.version
@@ -103,9 +109,11 @@ export class Updater {
       return
     }
     this.manual = manual
-    autoUpdater.checkForUpdates().catch(() => {
-      // 'error' 이벤트에서 처리한다
-    })
+    // 실패는 'error' 이벤트에서 처리한다. 자동 다운로드의 promise 도 따로 받아 둬야 unhandled rejection 이 남지 않는다.
+    autoUpdater
+      .checkForUpdates()
+      .then((r) => r?.downloadPromise?.catch(() => {}))
+      .catch(() => {})
   }
 
   install(): void {
