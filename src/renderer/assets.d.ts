@@ -3,3 +3,6 @@ declare module '*?url' {
   const url: string
   export default url
 }
+
+// 번들러가 처리하는 스타일시트 side-effect import
+declare module '*.css'

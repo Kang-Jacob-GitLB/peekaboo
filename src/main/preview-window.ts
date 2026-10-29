@@ -153,6 +153,10 @@ export class PreviewWindow {
     // 렌더러가 다른 곳으로 이동하거나 새 창을 여는 것을 막는다
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     win.webContents.on('will-navigate', (e) => e.preventDefault())
+    // HTML 미리보기 iframe(srcdoc)이 링크·<area>·<base> 등으로 다른 문서로 옮겨 가지 못하게 한다
+    win.webContents.on('will-frame-navigate', (e) => {
+      if (!e.isMainFrame && !e.url.startsWith('about:')) e.preventDefault()
+    })
     win.webContents.on('render-process-gone', (_e, details) => {
       log.error(`renderer gone: ${details.reason}`)
       this.destroy()
