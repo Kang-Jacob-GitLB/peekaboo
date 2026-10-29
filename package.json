@@ -1,7 +1,7 @@
 {
   "name": "peekaboo",
   "productName": "Peekaboo",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Quick file preview for Windows Explorer — press Space to peek.",
   "license": "GPL-3.0-only",
   "private": true,
@@ -12,9 +12,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "helper:build": "dotnet publish helper/Peekaboo.Helper.csproj -c Release -o helper/publish",
     "helper:console": "dotnet run --project helper/Peekaboo.Helper.csproj -- --console",
-    "dist": "npm run helper:build && npm run build && electron-builder --win --publish never"
+    "dist": "npm run helper:build && npm run build && electron-builder --win --publish never",
+    "next-version": "node scripts/next-version.mjs"
   },
-  "//": "렌더러 라이브러리는 vite 가 out/ 에 번들하므로 devDependencies 에 둔다. dependencies 에 두면 electron-builder 가 node_modules 째로 다시 패키징한다(pdfjs-dist 의 Node 용 @napi-rs/canvas 포함). main 프로세스는 npm 패키지를 쓰지 않는다.",
+  "//": "렌더러 라이브러리는 vite 가 out/ 에 번들하므로 devDependencies 에 둔다. dependencies 에 두면 electron-builder 가 node_modules 째로 다시 패키징한다(pdfjs-dist 의 Node 용 @napi-rs/canvas 포함). main 프로세스가 실행 중에 require 하는 것(electron-updater)만 dependencies 에 둔다. 버전은 릴리스 워크플로가 태그에서 넣으므로 저장소에서는 0.0.0 으로 둔다.",
   "devDependencies": {
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.0.0",
@@ -30,5 +31,8 @@
     "typescript": "7.0.2",
     "vite": "8.3.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

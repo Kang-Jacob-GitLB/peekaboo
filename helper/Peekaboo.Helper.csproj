@@ -8,7 +8,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>peekaboo-helper</AssemblyName>
     <RootNamespace>Peekaboo.Helper</RootNamespace>
-    <Version>0.1.0</Version>
+    <!-- 릴리스 워크플로가 -p:Version 으로 태그 버전을 넣는다 -->
+    <Version>0.0.0</Version>
 
     <!-- 배포: 단일 exe, self-contained, 최소 메모리 -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

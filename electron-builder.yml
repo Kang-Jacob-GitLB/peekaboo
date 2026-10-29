@@ -16,8 +16,18 @@ win:
     - target: nsis
       arch: [x64]
   icon: resources/icon.png
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
 nsis:
   oneClick: false
+  # 기본은 사용자 영역 설치라 앱 안 업데이트가 관리자 권한(UAC) 없이 설치된다.
+  # 설치 화면에서 "모든 사용자"를 고르면 이후 업데이트 때 UAC 창이 뜬다.
+  # 업데이트 설치 전에 설치 폴더 안의 프로세스(헬퍼 포함)는 electron-builder 가 끝낸다.
   perMachine: false
   allowToChangeInstallationDirectory: true
-publish: null
+# 앱 안 업데이트(electron-updater) 피드. 이 설정이 있어야 앱에 app-update.yml 이 들어가고,
+# --publish never 여도 release/latest.yml(버전·sha512)과 blockmap 이 만들어진다. 업로드는 릴리스 워크플로가 한다.
+# 코드 서명이 없으므로 publisherName 은 두지 않는다 — 무결성은 latest.yml 의 sha512 로 검증된다.
+publish:
+  provider: github
+  owner: Kang-Jacob-GitLB
+  repo: peekaboo
