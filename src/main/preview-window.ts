@@ -2,13 +2,24 @@ import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
-import type { ShowPayload } from '../shared/preview-api'
+import type { ContentSize, ShowPayload } from '../shared/preview-api'
 import { getFileInfo, listArchive, listDirectory, readTextHead } from './file-service'
 import { createLogger } from './logger'
 import type { NativePreviewBridge } from './native-preview'
 import type { PixelRect } from '../shared/ipc-types'
 
 const log = createLogger('preview')
+
+// 내용 크기에 맞출 때: 창 테두리(1px×2)와 헤더(38px + 테두리)
+const CHROME_W = 2
+const CHROME_H = 40
+// 작은 사진도 헤더(파일명·크기)가 읽히도록 하는 최소 내용 크기
+const MIN_CONTENT_W = 420
+const MIN_CONTENT_H = 240
+// 내용에 맞출 때 작업 영역에서 차지할 수 있는 최대 비율
+const MAX_AREA_RATIO = 0.85
+// 처음 띄울 때 렌더러가 내용 크기를 알려 주기를 기다리는 최대 시간(기본 크기로 떴다가 바뀌며 튀지 않게)
+const FIRST_FIT_WAIT_MS = 150
 
 export interface PreviewRequest {
   path: string
@@ -32,6 +43,9 @@ export class PreviewWindow {
   private visible = false
   /** 진행 중인 show() 의 seq(창을 띄우기 전 파일 정보·렌더러 로드 대기 중). 0 이면 없음 */
   private openingSeq = 0
+  /** 창을 띄우기 전에 받은 크기 요청(undefined = 아직 없음, null = 기본 크기) */
+  private firstFit: ContentSize | null | undefined
+  private firstFitWaiter: (() => void) | null = null
 
   constructor(
     private readonly keepWarmSeconds: () => number,
@@ -68,17 +82,36 @@ export class PreviewWindow {
     }
     await this.loaded
     if (seq !== this.seq || win.isDestroyed()) return // 그 사이 다른 파일이 요청됐거나 hide() 로 취소됨
-    this.openingSeq = 0
 
+    if (!this.visible) this.firstFit = undefined
     if (payload) win.webContents.send(Channels.show, payload)
     else win.webContents.send(Channels.showError, { seq, path: req.path, message: error })
 
     if (!this.visible) {
-      this.position(win)
+      // 기다리는 동안에도 openingSeq 를 유지해 isOpen 이 true 로 남게 한다(그 사이 Esc·앱 전환·Space 로 취소 가능)
+      await this.waitFirstFit()
+      if (seq !== this.seq || win.isDestroyed()) return
+      const area = cursorWorkArea()
+      if (this.firstFit) this.fit(win, this.firstFit, area)
+      else this.position(win, area)
       win.showInactive()
       this.visible = true
       log.info(`shown in ${(performance.now() - req.t0).toFixed(0)}ms since key`)
     }
+    if (this.openingSeq === seq) this.openingSeq = 0
+  }
+
+  private waitFirstFit(): Promise<void> {
+    if (this.firstFit !== undefined) return Promise.resolve()
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer)
+        if (this.firstFitWaiter === done) this.firstFitWaiter = null
+        resolve()
+      }
+      const timer = setTimeout(done, FIRST_FIT_WAIT_MS)
+      this.firstFitWaiter = done
+    })
   }
 
   hide(): void {
@@ -176,9 +209,27 @@ export class PreviewWindow {
     return win
   }
 
-  /** 커서가 있는 모니터의 작업 영역 중앙, 작업 영역의 70% 크기(최대 1280×900) */
-  private position(win: BrowserWindow): void {
-    const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+  /**
+   * 창을 내용 비율에 맞춘다. 창이 있는 모니터 작업 영역의 85% 안에 들어가게 줄이고,
+   * grow 가 아니면 원래 크기보다 키우지 않는다. 너무 작으면 최소 크기까지 늘린다(이때는 비율이 달라진다).
+   */
+  private fit(win: BrowserWindow, size: ContentSize, area = windowWorkArea(win)): void {
+    const maxW = Math.floor(area.width * MAX_AREA_RATIO) - CHROME_W
+    const maxH = Math.floor(area.height * MAX_AREA_RATIO) - CHROME_H
+    let scale = Math.min(maxW / size.width, maxH / size.height)
+    if (!size.grow) scale = Math.min(1, scale)
+    const width = Math.max(MIN_CONTENT_W, Math.round(size.width * scale)) + CHROME_W
+    const height = Math.max(MIN_CONTENT_H, Math.round(size.height * scale)) + CHROME_H
+    win.setBounds({
+      x: Math.round(area.x + (area.width - width) / 2),
+      y: Math.round(area.y + (area.height - height) / 2),
+      width,
+      height
+    })
+  }
+
+  /** 작업 영역(기본: 창이 있는 모니터) 중앙, 작업 영역의 70% 크기(최대 1280×900) */
+  private position(win: BrowserWindow, area = windowWorkArea(win)): void {
     const width = Math.min(Math.round(area.width * 0.7), 1280)
     const height = Math.min(Math.round(area.height * 0.7), 900)
     win.setBounds({
@@ -221,6 +272,17 @@ export class PreviewWindow {
     ipcMain.on(Channels.nativeClose, (e, handle: number) => {
       if (fromPreview(e.sender)) this.native.close(handle)
     })
+    ipcMain.on(Channels.fit, (e, seq: number, size: unknown) => {
+      const win = this.win
+      if (!fromPreview(e.sender) || !win || seq !== this.seq) return
+      if (size !== null && !isContentSize(size)) return
+      if (!this.visible) {
+        // 아직 띄우기 전: show() 가 이 크기로 띄운다
+        this.firstFit = size
+        this.firstFitWaiter?.()
+      } else if (size === null) this.position(win)
+      else this.fit(win, size)
+    })
     ipcMain.on(Channels.rendered, (e, seq: number) => {
       if (!fromPreview(e.sender)) return
       const t0 = this.pendingT0.get(seq)
@@ -228,6 +290,22 @@ export class PreviewWindow {
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
     })
   }
+}
+
+/** 처음 띄울 때: 커서가 있는 모니터 */
+function cursorWorkArea(): Electron.Rectangle {
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+}
+
+/** 이미 떠 있는 창의 크기를 바꿀 때: 창이 있는 모니터(파일을 넘길 때 다른 모니터로 옮겨 가지 않게) */
+function windowWorkArea(win: BrowserWindow): Electron.Rectangle {
+  return screen.getDisplayMatching(win.getBounds()).workArea
+}
+
+function isContentSize(s: unknown): s is ContentSize {
+  if (typeof s !== 'object' || s === null) return false
+  const { width, height, grow } = s as Record<string, unknown>
+  return [width, height].every((n) => typeof n === 'number' && Number.isFinite(n) && n > 0) && (grow === undefined || typeof grow === 'boolean')
 }
 
 function isRect(r: unknown): r is PixelRect {
