@@ -14,22 +14,21 @@
     "helper:console": "dotnet run --project helper/Peekaboo.Helper.csproj -- --console",
     "dist": "npm run helper:build && npm run build && electron-builder --win --publish never"
   },
+  "//": "렌더러 라이브러리는 vite 가 out/ 에 번들하므로 devDependencies 에 둔다. dependencies 에 두면 electron-builder 가 node_modules 째로 다시 패키징한다(pdfjs-dist 의 Node 용 @napi-rs/canvas 포함). main 프로세스는 npm 패키지를 쓰지 않는다.",
   "devDependencies": {
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.0.0",
+    "dompurify": "^3.4.17",
     "electron": "45.1.0",
     "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
-    "typescript": "7.0.2",
-    "vite": "8.3.5"
-  },
-  "dependencies": {
-    "dompurify": "^3.4.17",
     "highlight.js": "^11.12.0",
     "jszip": "^3.10.2",
     "mammoth": "^1.13.0",
     "markdown-it": "^15.0.3",
     "pdfjs-dist": "^6.4.299",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
