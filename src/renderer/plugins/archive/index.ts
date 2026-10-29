@@ -83,17 +83,26 @@ export function create(): PreviewPlugin {
       container.classList.add('archive-view')
 
       const fileCount = listing.entries.filter((e) => !e.isDirectory).length
-      const parts = [file.ext.toUpperCase() || 'ZIP']
-      parts.push(listing.truncated ? `항목 ${listing.totalEntries.toLocaleString('ko-KR')}개` : `파일 ${fileCount.toLocaleString('ko-KR')}개`)
-      if (listing.totalSize > 0) {
+      const parts = [/\.tar\.gz$/i.test(file.name) ? 'TAR.GZ' : file.ext.toUpperCase() || 'ZIP']
+      const total = listing.totalEntries.toLocaleString('ko-KR')
+      parts.push(listing.truncated ? `항목 ${total}개${listing.totalIsLowerBound ? ' 이상' : ''}` : `파일 ${fileCount.toLocaleString('ko-KR')}개`)
+      if (listing.totalSize > 0 && listing.compressedSize === listing.totalSize) {
+        parts.push(`크기 ${formatSize(listing.totalSize)}`) // 평문 tar 등 압축 없음
+      } else if (listing.totalSize > 0) {
         const ratio = Math.round((listing.compressedSize / listing.totalSize) * 100)
         parts.push(`원본 ${formatSize(listing.totalSize)}(압축 ${formatSize(listing.compressedSize)}, ${ratio}%)`)
       }
       setSubtitle(parts.join(' · '))
 
       const notices: string[] = []
-      if (listing.truncated)
-        notices.push(`항목이 많아 처음 ${listing.entries.length.toLocaleString('ko-KR')}개만 표시합니다. 크기 합계도 이 항목들만의 값입니다.`)
+      if (listing.truncated) {
+        const shown = listing.entries.length.toLocaleString('ko-KR')
+        notices.push(
+          listing.scanLimited
+            ? `압축 파일이 너무 커서 앞부분 ${shown}개만 표시합니다. 크기 합계도 이 항목들만의 값입니다.`
+            : `항목이 많아 처음 ${shown}개만 표시합니다. 크기 합계도 이 항목들만의 값입니다.`
+        )
+      }
       if (listing.encrypted) notices.push('암호화된 항목이 있습니다. 목록만 볼 수 있고 내용은 열 수 없습니다.')
       if (listing.comment) notices.push(`압축 파일 주석: ${listing.comment}`)
       for (const text of notices) {
