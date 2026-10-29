@@ -13,7 +13,7 @@ const MEDIA = [
   'mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac',
 ]
 const TEXT = [
-  'txt', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'html', 'xml',
+  'txt', 'log', 'json', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'xml',
   'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'csv', 'tsv', 'py', 'rb', 'go', 'rs', 'java', 'kt',
   'c', 'h', 'cpp', 'hpp', 'cc', 'cs', 'swift', 'php', 'sh', 'bash', 'ps1', 'bat', 'cmd', 'sql',
   'lua', 'r', 'dart', 'vue', 'svelte', 'gradle', 'properties', 'diff', 'patch', 'env',
@@ -25,6 +25,7 @@ const TEXT = [
 export const plugins: PluginEntry[] = [
   { id: 'image', extensions: IMAGE, load: () => import('./image') },
   { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], load: () => import('./markdown') },
+  { id: 'html', extensions: ['html', 'htm', 'xhtml'], load: () => import('./html') },
   { id: 'text', extensions: TEXT, load: () => import('./text') },
   { id: 'pdf', extensions: ['pdf'], load: () => import('./pdf') },
   // Office 문서: Windows 미리보기 핸들러(Office 설치 시 원본과 같은 모양) 우선, 없으면 자체 간이 렌더러

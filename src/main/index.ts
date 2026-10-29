@@ -4,7 +4,7 @@ import { HelperSupervisor } from './helper-supervisor'
 import { NativePreviewBridge } from './native-preview'
 import { createLogger } from './logger'
 import { PreviewWindow } from './preview-window'
-import { handlePeekProtocol, registerPeekScheme } from './protocol'
+import { blockRemoteFileRequests, handlePeekProtocol, registerPeekScheme } from './protocol'
 import { getSettings } from './settings'
 import { AppTray } from './tray'
 import { Updater } from './updater'
@@ -33,6 +33,7 @@ function start(): void {
   const native = new NativePreviewBridge((msg) => helper.send(msg))
   const preview = new PreviewWindow(() => getSettings().keepWarmSeconds, native)
   handlePeekProtocol((path) => preview.isAllowedPath(path))
+  blockRemoteFileRequests((path) => preview.isAllowedPath(path))
 
   const updater = new Updater(() => tray.refreshUpdate())
   const tray = new AppTray((enabled) => {

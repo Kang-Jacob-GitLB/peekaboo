@@ -1,5 +1,5 @@
-import { net, protocol } from 'electron'
-import { pathToFileURL } from 'node:url'
+import { net, protocol, session } from 'electron'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { PEEK_SCHEME, fromPeekUrl } from '../shared/channels'
 
 /**
@@ -25,5 +25,26 @@ export function handlePeekProtocol(isAllowed: (path: string) => boolean): void {
     const headers = new Headers(res.headers)
     headers.set('Access-Control-Allow-Origin', '*')
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+  })
+}
+
+/**
+ * 호스트가 붙은 file:// 요청(= \서버\공유 UNC 경로)을 막는다. 미리보기 중인 HTML·Markdown 이
+ * <img src="file://서버/…"> 같은 것으로 SMB 접속(NTLM 해시 전송)을 일으키지 못하게 하기 위함이다.
+ * 앱 CSP 의 'self' 는 file: 출처에서 호스트를 가리지 않아 이것만으로는 막히지 않는다.
+ * 지금 미리보기 중인 파일 자체가 네트워크 공유에 있는 경우는 허용한다.
+ */
+export function blockRemoteFileRequests(isAllowed: (path: string) => boolean): void {
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    let cancel = false
+    if (details.url.startsWith('file:')) {
+      try {
+        const url = new URL(details.url)
+        cancel = url.hostname !== '' && !isAllowed(fileURLToPath(url))
+      } catch {
+        cancel = true
+      }
+    }
+    callback({ cancel })
   })
 }

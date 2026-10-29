@@ -1,5 +1,7 @@
 import mammoth from 'mammoth'
 import DOMPurify from 'dompurify'
+// 본문 모양은 Markdown 미리보기와 같은 GitHub 스타일을 쓴다
+import 'github-markdown-css/github-markdown.css'
 import type { PreviewPlugin, RenderContext } from '../types'
 import { readBinary } from '../read-binary'
 
