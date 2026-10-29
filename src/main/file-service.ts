@@ -2,6 +2,7 @@ import { open, readdir, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { crc32 } from 'node:zlib'
 import type { ArchiveEntry, ArchiveListing, DirEntry, FileInfo, TextResult } from '../shared/preview-api'
+import { isGzip, isTarHeader, listTar, TAR_CORRUPT } from './tar-list'
 
 export async function getFileInfo(path: string): Promise<FileInfo> {
   const st = await stat(path)
@@ -74,8 +75,9 @@ export async function listDirectory(path: string, max: number): Promise<{ entrie
   return { entries, truncated: dirents.length > slice.length }
 }
 
-// ---------- zip 계열 압축 파일 목록 ----------
+// ---------- 압축 파일 목록(zip 계열, tar, tar.gz) ----------
 
+/** 중앙 디렉터리를 이만큼만 읽는다. 더 크면 앞부분 항목만 보여 준다 */
 const ZIP_MAX_CD_BYTES = 64 * 1024 * 1024
 /** 항목 이름 최대 길이(문자). 정상 경로는 Windows MAX_PATH(260)·NTFS 한계(32767)보다 훨씬 짧다 */
 const ZIP_MAX_NAME = 1024
@@ -84,14 +86,23 @@ const ZIP_EOCD_SEARCH = 65557
 const ZIP_CORRUPT = '손상되었거나 zip 형식이 아닌 파일입니다'
 
 /**
- * 압축을 풀지 않고 중앙 디렉터리만 읽어 항목 목록을 만든다(ZIP64 지원).
- * 파일 전체를 읽지 않고 끝부분(EOCD) → 중앙 디렉터리 범위만 읽는다. 항목은 max 개까지만 파싱한다.
+ * 압축을 풀지 않고 목록만 만든다.
+ * - tar·tgz·gz 확장자: 내용이 gzip 이면 tar.gz, 아니면 평문 tar 로 읽는다 (tar-list.ts)
+ * - 그 밖(zip 계열): 끝부분(EOCD) → 중앙 디렉터리만 읽는다(ZIP64 지원). 항목은 max 개까지만 파싱한다.
+ * 형식을 확장자 범주 안에서만 고르는 이유: 앞에 tar 헤더를 붙인 zip(규격상 유효)을 tar 로 읽으면,
+ * 탐색기·7-Zip 이 실제로 푸는 항목과 다른 위장 목록을 보여 주게 된다.
  */
 export async function listArchive(path: string, max: number): Promise<ArchiveListing> {
-  const limit = Math.max(0, Math.min(Math.floor(max), 100_000))
+  const limit = Number.isFinite(max) ? Math.max(0, Math.min(Math.floor(max), 100_000)) : 0
   const fh = await open(path, 'r')
   try {
     const size = (await fh.stat()).size
+    if (/\.(tar|tgz|gz)$/i.test(path)) {
+      const head = Buffer.alloc(Math.min(size, 512))
+      await fh.read(head, 0, head.length, 0)
+      if (!isGzip(head) && !isTarHeader(head)) throw new Error(TAR_CORRUPT)
+      return await listTar(fh, path, size, isGzip(head), limit, (b) => decodeZipName(b, false))
+    }
     if (size < 22) throw new Error(ZIP_CORRUPT)
 
     const readAt = async (pos: number, len: number): Promise<Buffer> => {
@@ -136,18 +147,20 @@ export async function listArchive(path: string, max: number): Promise<ArchiveLis
       }
     }
 
-    if (cdSize > ZIP_MAX_CD_BYTES) throw new Error('압축 파일의 목록 정보가 너무 커서 표시할 수 없습니다')
     if (cdOffset + cdSize > size) throw new Error(ZIP_CORRUPT)
 
-    // 3) 중앙 디렉터리 읽기. 앞에 다른 데이터가 붙은 파일(자체 압축 풀기 exe 등)은 오프셋이 어긋나므로 EOCD 기준으로 보정
-    let cd = await readAt(cdOffset, cdSize)
+    // 3) 중앙 디렉터리 읽기(앞부분 최대 ZIP_MAX_CD_BYTES). 앞에 다른 데이터가 붙은 파일(자체 압축 풀기 exe 등)은
+    //    오프셋이 어긋나므로 EOCD 기준으로 보정
+    const readLen = Math.min(cdSize, ZIP_MAX_CD_BYTES)
+    const cdPartial = readLen < cdSize
+    let cd = await readAt(cdOffset, readLen)
     if (cdSize > 0 && (cd.length < 4 || cd.readUInt32LE(0) !== 0x02014b50)) {
       const shifted = eocdAbs - cdSize
       if (shifted < 0) throw new Error(ZIP_CORRUPT)
-      cd = await readAt(shifted, cdSize)
+      cd = await readAt(shifted, readLen)
     }
     // 중앙 디렉터리 항목 하나의 최소 크기는 46바이트
-    if (cd.length !== cdSize || (cdSize > 0 && (cdSize < 46 || cd.readUInt32LE(0) !== 0x02014b50))) throw new Error(ZIP_CORRUPT)
+    if (cd.length !== readLen || (cdSize > 0 && (cdSize < 46 || cd.readUInt32LE(0) !== 0x02014b50))) throw new Error(ZIP_CORRUPT)
 
     const want = Math.min(totalEntries, limit)
     const entries: ArchiveEntry[] = []
@@ -155,7 +168,13 @@ export async function listArchive(path: string, max: number): Promise<ArchiveLis
     let compressedSize = 0
     let encrypted = false
     let pos = 0
+    let scanLimited = false
     while (entries.length < want) {
+      // 앞부분만 읽은 경우 버퍼 끝에 걸린 항목에서 멈춘다
+      if (cdPartial && pos + 46 > cd.length) {
+        scanLimited = true
+        break
+      }
       if (pos + 46 > cd.length || cd.readUInt32LE(pos) !== 0x02014b50) throw new Error(ZIP_CORRUPT)
       const flags = cd.readUInt16LE(pos + 8)
       const method = cd.readUInt16LE(pos + 10)
@@ -167,6 +186,10 @@ export async function listArchive(path: string, max: number): Promise<ArchiveLis
       const extraLen = cd.readUInt16LE(pos + 30)
       const cmtLen = cd.readUInt16LE(pos + 32)
       const next = pos + 46 + nameLen + extraLen + cmtLen
+      if (next > cd.length && cdPartial) {
+        scanLimited = true
+        break
+      }
       if (next > cd.length) throw new Error(ZIP_CORRUPT)
       const nameBytes = cd.subarray(pos + 46, pos + 46 + nameLen)
       const extra = cd.subarray(pos + 46 + nameLen, pos + 46 + nameLen + extraLen)
@@ -216,6 +239,7 @@ export async function listArchive(path: string, max: number): Promise<ArchiveLis
       entries,
       totalEntries,
       truncated: totalEntries > entries.length,
+      ...(scanLimited ? { scanLimited } : {}),
       totalSize,
       compressedSize,
       encrypted,

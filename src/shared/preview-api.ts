@@ -59,7 +59,7 @@ export interface ArchiveEntry {
 
 export interface ArchiveListing {
   entries: ArchiveEntry[]
-  /** 중앙 디렉터리(EOCD)에 기록된 전체 항목 수 */
+  /** 전체 항목 수(zip 은 EOCD 기록값, tar 는 읽은 수) */
   totalEntries: number
   /** 항목이 max 를 넘어 entries 가 일부뿐이면 true */
   truncated: boolean
@@ -69,6 +69,10 @@ export interface ArchiveListing {
   /** 하나라도 암호화돼 있으면 true */
   encrypted: boolean
   comment?: string
+  /** totalEntries 가 정확한 값이 아니라 하한(tar 처럼 색인이 없는 형식을 끝까지 읽지 못함) */
+  totalIsLowerBound?: boolean
+  /** 목록 정보가 너무 커서(zip 중앙 디렉터리 64MB, tar.gz 해제 256MB) 앞부분만 읽었음 */
+  scanLimited?: boolean
 }
 
 export interface PeekabooApi {

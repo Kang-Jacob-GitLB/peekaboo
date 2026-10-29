@@ -34,8 +34,13 @@ export const plugins: PluginEntry[] = [
   // 구형 Office 형식은 자체 렌더러가 없어 핸들러가 없으면 폴백 카드로 표시
   { id: 'office-legacy', extensions: ['doc', 'ppt', 'rtf'], load: () => nativeFirst() },
   { id: 'media', extensions: MEDIA, load: () => import('./media') },
-  // zip 계열(epub 포함)은 중앙 디렉터리만 읽어 파일 목록을 보여 준다. 7z/rar/tar 등은 폴백 카드
-  { id: 'archive', extensions: ['zip', 'jar', 'apk', 'aab', 'vsix', 'nupkg', 'whl', 'xpi', 'epub'], load: () => import('./archive') },
+  // zip 계열(epub 포함)·tar·tar.gz 는 압축을 풀지 않고 파일 목록을 보여 준다. 7z/rar 는 폴백 카드
+  // gz 는 확장자만으로는 tar.gz 인지 알 수 없어 main 이 내용으로 판별하고, tar 가 아니면 오류 안내가 뜬다
+  {
+    id: 'archive',
+    extensions: ['zip', 'jar', 'apk', 'aab', 'vsix', 'nupkg', 'whl', 'xpi', 'epub', 'tar', 'tgz', 'gz'],
+    load: () => import('./archive')
+  },
   { id: 'folder', extensions: [], matchDirectory: true, load: () => import('./folder') },
   { id: 'fallback', extensions: ['*'], matchDirectory: true, load: () => import('./fallback') },
 ]
