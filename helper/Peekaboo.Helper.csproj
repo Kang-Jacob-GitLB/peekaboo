@@ -19,6 +19,14 @@
     <ServerGarbageCollector>false</ServerGarbageCollector>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredPGO>false</TieredPGO>
+    <!-- 트리밍: 68MB → 12MB. partial 은 IsTrimmable 로 표시된 프레임워크 어셈블리만 잘라 내고
+         이 어셈블리(CsWin32 가 만든 COM 인터페이스 정의)는 그대로 둔다. 트리밍 시 기본으로 꺼지는
+         내장 COM interop(ComImport/IDispatch)은 셸 선택 조회·미리보기 핸들러가 쓰므로 다시 켠다.
+         IL2050(COM 마샬링 정확성 경고)은 위 이유로 해당 없음 — 실제 탐색기·Office 핸들러로 회귀 확인. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <NoWarn>$(NoWarn);IL2050</NoWarn>
     <DebugType>embedded</DebugType>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>obj/generated</CompilerGeneratedFilesOutputPath>
