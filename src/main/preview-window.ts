@@ -30,6 +30,8 @@ export class PreviewWindow {
   private currentPath: string | null = null
   private pendingT0 = new Map<number, number>()
   private visible = false
+  /** 진행 중인 show() 의 seq(창을 띄우기 전 파일 정보·렌더러 로드 대기 중). 0 이면 없음 */
+  private openingSeq = 0
 
   constructor(
     private readonly keepWarmSeconds: () => number,
@@ -38,8 +40,9 @@ export class PreviewWindow {
     this.registerIpc()
   }
 
+  /** 보이는 중이거나 띄우는 중 */
   get isOpen(): boolean {
-    return this.visible
+    return this.visible || this.openingSeq !== 0
   }
 
   /** peek:// 와 readText 가 허용하는 유일한 경로 */
@@ -51,6 +54,7 @@ export class PreviewWindow {
 
   async show(req: PreviewRequest): Promise<void> {
     const seq = ++this.seq
+    this.openingSeq = seq
     this.pendingT0.set(seq, req.t0)
     this.currentPath = req.path
 
@@ -63,7 +67,8 @@ export class PreviewWindow {
       error = e instanceof Error ? e.message : String(e)
     }
     await this.loaded
-    if (seq !== this.seq || win.isDestroyed()) return // 그 사이 다른 파일이 요청됨
+    if (seq !== this.seq || win.isDestroyed()) return // 그 사이 다른 파일이 요청됐거나 hide() 로 취소됨
+    this.openingSeq = 0
 
     if (payload) win.webContents.send(Channels.show, payload)
     else win.webContents.send(Channels.showError, { seq, path: req.path, message: error })
@@ -77,7 +82,12 @@ export class PreviewWindow {
   }
 
   hide(): void {
-    if (!this.win || !this.visible) return
+    const wasOpening = this.openingSeq !== 0
+    // 띄우는 중이면 취소한다: seq 를 올리면 대기 중인 show() 가 창을 띄우지 않고 끝난다.
+    // (취소하지 않으면 Space 를 빠르게 두 번 누르거나 그 사이 다른 앱으로 전환했을 때 창이 뒤늦게 떠서 남는다)
+    this.seq++
+    this.openingSeq = 0
+    if (!this.win || (!this.visible && !wasOpening)) return
     this.visible = false
     this.currentPath = null
     this.native.closeAll('hidden')
@@ -95,6 +105,7 @@ export class PreviewWindow {
     if (this.destroyTimer) clearTimeout(this.destroyTimer)
     this.destroyTimer = null
     this.visible = false
+    this.openingSeq = 0
     this.currentPath = null
     this.native.closeAll('destroyed')
     this.loaded = null

@@ -12,6 +12,7 @@ internal interface IHelperSink
     void Key(KeyName key, bool consumed);
     void Selection(int? id, SelectionResult selection);
     void Error(int? id, string code, string message);
+    void Foreground(uint pid);
 }
 
 /// <summary>
@@ -41,7 +42,7 @@ internal sealed class HelperCore : IDisposable
     {
         _sink = sink;
         _watcher = new SelectionWatcher(OnSelectionChangedEvent);
-        _hook = new KeyboardHook(OnKey, FocusInspector.PrimeForWindow);
+        _hook = new KeyboardHook(OnKey, OnForeground, () => _previewOpen);
     }
 
     public bool PreviewOpen => _previewOpen;
@@ -132,6 +133,7 @@ internal sealed class HelperCore : IDisposable
             return false;
         }
         if (FocusInspector.IsElevatedCached(target.ProcessId)) return false; // 선택을 읽을 수 없으니 탐색기에 맡긴다
+        FocusInspector.LearnShell(target.TopLevel, target.ProcessId);
 
         bool consume, emit;
         switch (key.Value)
@@ -150,6 +152,17 @@ internal sealed class HelperCore : IDisposable
         }
         if (consume) _swallowed.Add(vk);
         return consume;
+    }
+
+    /// <summary>
+    /// 포그라운드가 셸 밖의 창으로 넘어가면 알린다. 미리보기가 닫혀 있어도 보낸다 — Space 직후 선택 조회 응답 전
+    /// (호스트가 아직 state 를 보내기 전)에 전환해도 호스트가 여는 중인 요청을 취소할 수 있도록. 판단은 호스트가 한다.
+    /// </summary>
+    private void OnForeground(Windows.Win32.Foundation.HWND hwnd)
+    {
+        FocusInspector.PrimeForWindow(hwnd);
+        if (hwnd.IsNull || FocusInspector.IsShellWindow(hwnd, out var pid)) return;
+        _sink.Foreground(pid);
     }
 
     private static KeyName? MapKey(uint vk) => (VIRTUAL_KEY)vk switch
