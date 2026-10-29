@@ -16,6 +16,8 @@ GetClassName
 GetParent
 GetAncestor
 GetShellWindow
+SetTimer
+KillTimer
 IsWindowVisible
 FindWindowEx
 GetKeyState

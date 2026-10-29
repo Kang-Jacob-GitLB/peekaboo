@@ -16,7 +16,8 @@ internal static class FocusInspector
 {
     private static readonly Dictionary<uint, bool> ElevationCache = new();
     private static readonly HashSet<uint> ElevationPending = new();
-    private static readonly HashSet<uint> ShellPids = new(); // 훅 스레드 전용
+    /// <summary>탐색기 창을 띄운 프로세스 → 그 창(PID 재사용 확인용). 훅 스레드 전용</summary>
+    private static readonly Dictionary<uint, HWND> ShellPids = new();
 
     /// <summary>
     /// 훅 콜백에서 호출되므로 COM 없이 가벼운 Win32 호출만 사용한다.
@@ -55,9 +56,11 @@ internal static class FocusInspector
     }
 
     /// <summary>
-    /// 포그라운드로 올라온 창이 셸(탐색기 창·바탕화면·작업 표시줄·Alt+Tab 등 explorer.exe) 쪽인지 판정한다.
-    /// 훅 스레드에서 불리므로 프로세스 이름 조회(OpenProcess) 대신 창 클래스와 PID 만 쓴다.
-    /// 탐색기 창/바탕화면을 본 적 있는 PID 를 기억해, "폴더 창을 별도 프로세스로" 설정에서 그 프로세스의 대화상자도 셸로 본다.
+    /// 포그라운드로 올라온 창이 셸 쪽인지 판정한다. 훅 스레드에서 불리므로 프로세스 이름 조회(OpenProcess) 대신 창 클래스와 PID 만 쓴다.
+    /// - explorer.exe(GetShellWindow 의 프로세스): 바탕화면·작업 표시줄·Alt+Tab·탐색기 대화상자
+    /// - 탐색기 창(CabinetWClass)을 띄운 프로세스: "폴더 창을 별도 프로세스로" 설정일 때 그 프로세스의 대화상자
+    /// - Windows.UI.Core.CoreWindow: 시작 메뉴·검색·알림 센터·화면 캡처 등 explorer 밖의 셸 화면
+    ///   (일반 UWP 앱의 최상위 창은 ApplicationFrameWindow 라 여기에 걸리지 않는다)
     /// </summary>
     public static unsafe bool IsShellWindow(HWND hwnd, out uint pid)
     {
@@ -67,16 +70,35 @@ internal static class FocusInspector
         uint p;
         if (PInvoke.GetWindowThreadProcessId(root, &p) == 0) return true; // 판단할 수 없으면 셸로 간주(닫지 않음)
         pid = p;
-        if (SourceOf(root) is not null)
+        var cls = ClassOf(root);
+        if (cls == "CoreWindow" || cls == "Windows.UI.Core.CoreWindow") return true;
+        if (cls is "CabinetWClass" or "Progman")
         {
-            if (ShellPids.Count > 64) ShellPids.Clear();
-            ShellPids.Add(p);
+            LearnShell(root, p);
             return true;
         }
         var shell = PInvoke.GetShellWindow();
         uint shellPid;
         if (!shell.IsNull && PInvoke.GetWindowThreadProcessId(shell, &shellPid) != 0 && shellPid == p) return true;
-        return ShellPids.Contains(p);
+        return IsLearnedShell(p);
+    }
+
+    /// <summary>탐색기 창/바탕화면을 띄운 프로세스를 기억한다(키 입력 시점에도 호출 — 헬퍼 재시작 직후 대비).</summary>
+    public static void LearnShell(HWND topLevel, uint pid)
+    {
+        if (ClassOf(topLevel) is not ("CabinetWClass" or "Progman")) return;
+        if (ShellPids.Count > 64) ShellPids.Clear();
+        ShellPids[pid] = topLevel;
+    }
+
+    /// <summary>기억한 창이 아직 있고 같은 프로세스 것이어야 한다(프로세스가 끝나고 PID 가 다른 앱에 재사용된 경우 배제).</summary>
+    private static unsafe bool IsLearnedShell(uint pid)
+    {
+        if (!ShellPids.TryGetValue(pid, out var h)) return false;
+        uint owner;
+        if (PInvoke.IsWindow(h) && PInvoke.GetWindowThreadProcessId(h, &owner) != 0 && owner == pid) return true;
+        ShellPids.Remove(pid);
+        return false;
     }
 
     private static SelectionSource? SourceOf(HWND fg) => ClassOf(fg) switch

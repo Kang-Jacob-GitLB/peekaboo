@@ -169,7 +169,7 @@ internal static class Program
         public void Foreground(uint pid)
         {
             Print($"foreground left shell (pid {pid})");
-            if (Core is null) return;
+            if (Core is null || !Core.PreviewOpen) return;
             Core.SetPreviewOpen(false);
             Print("[preview CLOSED]");
         }

@@ -91,8 +91,12 @@ function start(): void {
         native.onResult(msg.id, msg.status, msg.message)
         break
       case 'foreground':
-        // 다른 앱으로 전환하면 닫는다. 미리보기 창 자신(사용자가 창을 클릭)은 이 프로세스의 창이므로 유지.
-        if (msg.pid !== process.pid && (preview.isOpen || pendingOpen.size > 0)) closePreview()
+        // 다른 앱으로 전환하면 닫는다(띄우는 중이면 취소). 이 앱 자신의 창(트레이 메뉴 등)은 제외.
+        // 미리보기 창은 focusable:false 라 클릭해도 포그라운드가 되지 않는다.
+        if (msg.pid !== process.pid && (preview.isOpen || pendingOpen.size > 0)) {
+          log.info(`foreground moved to pid ${msg.pid} → close`)
+          closePreview()
+        }
         break
       case 'error':
         if (msg.id !== undefined) pendingOpen.delete(msg.id)
