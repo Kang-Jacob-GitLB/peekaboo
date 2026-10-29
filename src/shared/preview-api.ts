@@ -22,6 +22,14 @@ export interface ShowPayload {
   selectionCount: number
 }
 
+/** 미리보기 창을 맞출 내용 크기(CSS px). 창은 이 비율을 유지하며 화면에 들어가게 줄인다. */
+export interface ContentSize {
+  width: number
+  height: number
+  /** true 면 화면 한도까지 키운다(문서처럼 비율만 의미 있는 경우). false 면 원래 크기보다 키우지 않는다. */
+  grow?: boolean
+}
+
 export interface ShowError {
   seq: number
   path: string
@@ -92,6 +100,8 @@ export interface PeekabooApi {
   fileUrl(path: string): string
   /** 렌더 완료 신호(첫 표시 지연 측정용) */
   rendered(seq: number): void
+  /** 창 크기를 내용(size)에 맞춘다. null 이면 기본 크기로 되돌린다. */
+  fit(seq: number, size: ContentSize | null): void
   /**
    * Windows 에 등록된 미리보기 핸들러(Office 등)를 rect(이 창 클라이언트 영역, 물리 픽셀) 위치에 띄운다.
    * 핸들러 창은 HTML 위에 겹쳐지는 별도 네이티브 창이다. 한 번에 하나만 열리며 새로 열면 이전 것은 닫힌다.

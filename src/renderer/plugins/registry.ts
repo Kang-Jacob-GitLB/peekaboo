@@ -6,6 +6,10 @@ type PluginModule = { create: () => PreviewPlugin }
 const nativeFirst = (fallback?: () => Promise<PluginModule>) =>
   import('./native').then((m) => m.nativeFirst(fallback))
 
+// 페이지 비율(가로:세로)
+const A4_PORTRAIT: [number, number] = [210, 297]
+const SLIDE_16_9: [number, number] = [16, 9]
+
 const IMAGE = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif']
 // 실제 재생 가능 여부는 Chromium 코덱 지원에 달려 있고, 못 하면 폴백 카드로 표시된다.
 const MEDIA = [
@@ -24,14 +28,15 @@ const TEXT = [
 // 포맷별 플러그인 목록. 순서 = 우선순위. load() 는 선택될 때만 호출된다.
 export const plugins: PluginEntry[] = [
   { id: 'image', extensions: IMAGE, load: () => import('./image') },
-  { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], load: () => import('./markdown') },
+  { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], aspect: A4_PORTRAIT, load: () => import('./markdown') },
   { id: 'html', extensions: ['html', 'htm', 'xhtml'], load: () => import('./html') },
   { id: 'text', extensions: TEXT, load: () => import('./text') },
-  { id: 'pdf', extensions: ['pdf'], load: () => import('./pdf') },
+  // PDF 는 첫 페이지 크기로 다시 맞춘다
+  { id: 'pdf', extensions: ['pdf'], aspect: A4_PORTRAIT, load: () => import('./pdf') },
   // Office 문서: Windows 미리보기 핸들러(Office 설치 시 원본과 같은 모양) 우선, 없으면 자체 간이 렌더러
-  { id: 'docx', extensions: ['docx'], load: () => nativeFirst(() => import('./docx')) },
+  { id: 'docx', extensions: ['docx'], aspect: A4_PORTRAIT, load: () => nativeFirst(() => import('./docx')) },
   { id: 'xlsx', extensions: ['xlsx', 'xlsm', 'xls'], load: () => nativeFirst(() => import('./xlsx')) },
-  { id: 'pptx', extensions: ['pptx'], load: () => nativeFirst(() => import('./pptx')) },
+  { id: 'pptx', extensions: ['pptx'], aspect: SLIDE_16_9, load: () => nativeFirst(() => import('./pptx')) },
   // 구형 Office 형식은 자체 렌더러가 없어 핸들러가 없으면 폴백 카드로 표시
   { id: 'office-legacy', extensions: ['doc', 'ppt', 'rtf'], load: () => nativeFirst() },
   { id: 'media', extensions: MEDIA, load: () => import('./media') },

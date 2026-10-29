@@ -17,6 +17,7 @@ const api: PeekabooApi = {
   listArchive: (path, max) => ipcRenderer.invoke(Channels.listArchive, path, max),
   fileUrl: (path) => toPeekUrl(path),
   rendered: (seq) => ipcRenderer.send(Channels.rendered, seq),
+  fit: (seq, size) => ipcRenderer.send(Channels.fit, seq, size),
   nativePreview: {
     open: (path, rect) => ipcRenderer.invoke(Channels.nativeOpen, path, rect),
     resize: (handle, rect) => ipcRenderer.send(Channels.nativeResize, handle, rect),

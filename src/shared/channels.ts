@@ -8,6 +8,7 @@ export const Channels = {
   listDir: 'preview:list-dir',
   listArchive: 'preview:list-archive',
   rendered: 'preview:rendered',
+  fit: 'preview:fit',
   nativeOpen: 'preview:native-open',
   nativeResize: 'preview:native-resize',
   nativeClose: 'preview:native-close'

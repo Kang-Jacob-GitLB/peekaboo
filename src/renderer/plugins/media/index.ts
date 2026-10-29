@@ -23,7 +23,7 @@ export function create(): PreviewPlugin {
   let media: HTMLMediaElement | null = null
 
   return {
-    async render({ file, container, signal, host, setSubtitle }: RenderContext) {
+    async render({ file, container, signal, host, setSubtitle, fitContent }: RenderContext) {
       const isAudio = AUDIO_EXT.has(file.ext)
       const el = document.createElement(isAudio ? 'audio' : 'video')
       media = el
@@ -57,6 +57,7 @@ export function create(): PreviewPlugin {
       const parts = [file.ext.toUpperCase()]
       if (el instanceof HTMLVideoElement && el.videoWidth && el.videoHeight) {
         parts.push(`${el.videoWidth}×${el.videoHeight}`)
+        fitContent({ width: el.videoWidth, height: el.videoHeight })
       }
       if (Number.isFinite(el.duration)) parts.push(formatDuration(el.duration))
       setSubtitle(parts.join(' · '))

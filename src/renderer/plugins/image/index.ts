@@ -3,7 +3,7 @@ import type { PreviewPlugin, RenderContext } from '../types'
 // <img> 로 로드하므로 SVG 안의 스크립트는 실행되지 않는다.
 export function create(): PreviewPlugin {
   return {
-    async render({ file, container, signal, host, setSubtitle }: RenderContext) {
+    async render({ file, container, signal, host, setSubtitle, fitContent }: RenderContext) {
       container.classList.add('image-view')
       const img = document.createElement('img')
       img.alt = file.name
@@ -24,6 +24,8 @@ export function create(): PreviewPlugin {
         img.style.maxWidth = `min(100%, ${w}px)`
         img.style.maxHeight = `min(100%, ${h}px)`
         setSubtitle(`${file.ext.toUpperCase()} · ${w}×${h}`)
+        // .image-view 의 padding 12px 를 더한다
+        fitContent({ width: w + 24, height: h + 24 })
       }
       try {
         await img.decode()

@@ -1,7 +1,7 @@
 import { findPlugin } from './plugins/registry'
 import { formatSize } from './plugins/format'
 import type { PreviewPlugin } from './plugins/types'
-import type { ShowPayload } from '../shared/preview-api'
+import type { ContentSize, ShowPayload } from '../shared/preview-api'
 
 const host = window.peekaboo
 const LOADING_DELAY_MS = 120
@@ -69,6 +69,14 @@ async function show(payload: ShowPayload): Promise<void> {
     main.append(loader)
   }, LOADING_DELAY_MS)
 
+  // 창 크기: 플러그인이 알려 준 내용 크기 → registry 의 페이지 비율 → 기본 크기 순
+  let fitted = false
+  const fit = (size: ContentSize | null) => {
+    if (stale()) return
+    fitted = size !== null
+    host.fit(seq, size)
+  }
+
   const ctx = {
     file,
     container,
@@ -77,11 +85,13 @@ async function show(payload: ShowPayload): Promise<void> {
     setSubtitle: (t: string) => {
       if (!stale()) elSub.textContent = t
     },
+    fitContent: (size: ContentSize) => fit(size),
   }
 
   try {
     const entry = findPlugin(file)
     if (!entry) throw new Error('사용 가능한 플러그인이 없습니다.')
+    if (entry.aspect) fit({ width: entry.aspect[0], height: entry.aspect[1], grow: true })
     const mod = await entry.load()
     if (stale()) return
     const plugin = mod.create()
@@ -92,6 +102,7 @@ async function show(payload: ShowPayload): Promise<void> {
     console.error(err)
     container.className = 'content'
     container.replaceChildren()
+    fitted = false
     const { renderFallback } = await import('./plugins/fallback')
     if (stale()) return
     renderFallback(container, file, `미리보기를 만들지 못했습니다: ${errorText(err)}`)
@@ -100,6 +111,7 @@ async function show(payload: ShowPayload): Promise<void> {
     loader?.remove()
   }
   if (stale()) return
+  if (!fitted) fit(null)
   await nextPaint()
   if (!stale()) host.rendered(seq)
 }
@@ -127,6 +139,7 @@ host.onShowError((e) => {
     view.append(d)
   }
   main.append(view)
+  host.fit(e.seq, null)
   void nextPaint().then(() => {
     if (current.seq === e.seq) host.rendered(e.seq)
   })

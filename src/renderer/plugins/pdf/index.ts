@@ -54,6 +54,8 @@ export function create(): PreviewPlugin {
       const base = (await pdf.getPage(1)).getViewport({ scale: 1 })
       const slotOf = new Map<Element, Slot>()
       if (signal.aborted) return
+      // 창을 첫 페이지 비율(+ 여백)에 맞춘다. 페이지는 창 폭에 맞춰 그리므로 화면 한도까지 키운다.
+      ctx.fitContent({ width: base.width + PAD * 2, height: base.height + PAD * 2, grow: true })
 
       // 창 폭에 맞춘 배율. 안 그린 페이지는 1쪽 비율로 자리만 잡고, 그릴 때 실제 크기로 보정한다.
       const fitScale = () => Math.max(0.2, (container.clientWidth - PAD * 2) / base.width)
