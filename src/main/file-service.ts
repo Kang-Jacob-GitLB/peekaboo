@@ -2,7 +2,7 @@ import { open, readdir, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { crc32 } from 'node:zlib'
 import type { ArchiveEntry, ArchiveListing, DirEntry, FileInfo, TextResult } from '../shared/preview-api'
-import { isGzip, isTarHeader, listTar } from './tar-list'
+import { isGzip, isTarHeader, listTar, TAR_CORRUPT } from './tar-list'
 
 export async function getFileInfo(path: string): Promise<FileInfo> {
   const st = await stat(path)
@@ -86,18 +86,21 @@ const ZIP_EOCD_SEARCH = 65557
 const ZIP_CORRUPT = '손상되었거나 zip 형식이 아닌 파일입니다'
 
 /**
- * 압축을 풀지 않고 목록만 만든다. 형식은 확장자가 아니라 내용으로 판별한다.
- * - gzip 이면 tar.gz, 첫 512바이트가 tar 헤더면 tar (tar-list.ts)
- * - 그 밖에는 zip: 끝부분(EOCD) → 중앙 디렉터리만 읽는다(ZIP64 지원). 항목은 max 개까지만 파싱한다.
+ * 압축을 풀지 않고 목록만 만든다.
+ * - tar·tgz·gz 확장자: 내용이 gzip 이면 tar.gz, 아니면 평문 tar 로 읽는다 (tar-list.ts)
+ * - 그 밖(zip 계열): 끝부분(EOCD) → 중앙 디렉터리만 읽는다(ZIP64 지원). 항목은 max 개까지만 파싱한다.
+ * 형식을 확장자 범주 안에서만 고르는 이유: 앞에 tar 헤더를 붙인 zip(규격상 유효)을 tar 로 읽으면,
+ * 탐색기·7-Zip 이 실제로 푸는 항목과 다른 위장 목록을 보여 주게 된다.
  */
 export async function listArchive(path: string, max: number): Promise<ArchiveListing> {
-  const limit = Math.max(0, Math.min(Math.floor(max), 100_000))
+  const limit = Number.isFinite(max) ? Math.max(0, Math.min(Math.floor(max), 100_000)) : 0
   const fh = await open(path, 'r')
   try {
     const size = (await fh.stat()).size
-    const head = Buffer.alloc(Math.min(size, 512))
-    await fh.read(head, 0, head.length, 0)
-    if (isGzip(head) || isTarHeader(head)) {
+    if (/\.(tar|tgz|gz)$/i.test(path)) {
+      const head = Buffer.alloc(Math.min(size, 512))
+      await fh.read(head, 0, head.length, 0)
+      if (!isGzip(head) && !isTarHeader(head)) throw new Error(TAR_CORRUPT)
       return await listTar(fh, path, size, isGzip(head), limit, (b) => decodeZipName(b, false))
     }
     if (size < 22) throw new Error(ZIP_CORRUPT)

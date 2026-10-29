@@ -152,9 +152,13 @@ function parsePax(data: Buffer): Map<string, string> {
   let pos = 0
   while (pos < data.length) {
     const sp = data.indexOf(0x20, pos)
-    if (sp < 0) break
-    const len = parseInt(data.toString('latin1', pos, sp), 10)
-    if (!Number.isFinite(len) || len <= 0 || pos + len > data.length) break
+    // 길이는 숫자만 허용하고, 레코드가 공백 뒤에서 "\n" 으로 끝나야 한다. 느슨하게 받으면(parseInt 의 앞쪽 공백 허용)
+    // pos 가 1바이트씩만 전진하며 같은 구간을 반복 파싱해 입력 크기의 제곱 시간이 걸린다(main 프로세스 정지).
+    if (sp < 0 || sp - pos > 20) break
+    const lenStr = data.toString('latin1', pos, sp)
+    if (!/^[1-9][0-9]*$/.test(lenStr)) break
+    const len = Number(lenStr)
+    if (len < sp - pos + 2 || pos + len > data.length || data[pos + len - 1] !== 0x0a) break
     const rec = data.subarray(sp + 1, pos + len - 1) // 끝의 "\n" 제외
     const eq = rec.indexOf(0x3d)
     if (eq > 0) out.set(rec.toString('utf8', 0, eq), rec.toString('utf8', eq + 1))
@@ -211,19 +215,23 @@ export async function listTar(
       const type = String.fromCharCode(h[156])
       const headerSize = parseNumber(h.subarray(124, 136))
       if (headerSize === null) throw new Error(TAR_CORRUPT)
-      const paxSize = pax.has('size') ? Number(pax.get('size')) : NaN
-      const entrySize = Number.isSafeInteger(paxSize) && paxSize >= 0 ? paxSize : headerSize
-      const padded = Math.ceil(entrySize / BLOCK) * BLOCK
 
-      // 메타 블록: 다음 항목의 이름·크기 등을 담는다
+      // 메타 블록: 다음 항목의 이름·크기 등을 담는다. 메타 블록 자신의 크기에는 pax size 를 적용하지 않는다
       if (type === 'L' || type === 'K' || type === 'x' || type === 'g') {
-        if (entrySize > META_MAX) throw new Error(TAR_CORRUPT)
-        const data = await src.read(padded)
-        if (data.length < padded) throw new Error(TAR_CORRUPT)
-        if (type === 'L') longName = decodeName(cString(data.subarray(0, entrySize)))
-        else if (type === 'x') pax = parsePax(data.subarray(0, entrySize))
+        if (headerSize > META_MAX) throw new Error(TAR_CORRUPT)
+        const metaPadded = Math.ceil(headerSize / BLOCK) * BLOCK
+        const data = await src.read(metaPadded)
+        if (data.length < metaPadded) throw new Error(TAR_CORRUPT)
+        if (type === 'L') longName = decodeName(cString(data.subarray(0, headerSize)))
+        else if (type === 'x') pax = parsePax(data.subarray(0, headerSize))
         continue // K(긴 링크 대상)·g(전역 pax)는 목록에 쓰지 않는다
       }
+
+      // pax 숫자는 10진 숫자만 받는다. Number() 는 "1e3"·"0x200" 도 받아들여 실제 압축 해제 도구(libarchive)와
+      // 다음 헤더 위치가 어긋나므로, 미리보기에만 보이는 가짜 항목을 만들 여지가 생긴다
+      const paxSizeStr = pax.get('size')
+      const entrySize = paxSizeStr !== undefined && /^[0-9]{1,16}$/.test(paxSizeStr) ? Number(paxSizeStr) : headerSize
+      const padded = Math.ceil(entrySize / BLOCK) * BLOCK
 
       let name = pax.get('path') ?? longName
       if (name === undefined || name === null) {
@@ -234,7 +242,8 @@ export async function listTar(
           if (prefix.length > 0) name = `${decodeName(prefix)}/${name}`
         }
       }
-      const paxMtime = pax.has('mtime') ? Number(pax.get('mtime')) : NaN
+      const paxMtimeStr = pax.get('mtime')
+      const paxMtime = paxMtimeStr !== undefined && /^-?[0-9]{1,15}(\.[0-9]+)?$/.test(paxMtimeStr) ? Number(paxMtimeStr) : NaN
       const mtime = Number.isFinite(paxMtime) ? paxMtime : (parseNumber(h.subarray(136, 148)) ?? 0)
       longName = null
       pax = new Map()
@@ -253,6 +262,16 @@ export async function listTar(
         encrypted: false,
         method: 0
       })
+
+      // 구형 GNU sparse: isextended(482) 가 켜져 있으면 확장 블록이 이어진다. 각 블록의 504 바이트가 다음 확장 여부
+      if (type === 'S' && h[482] !== 0) {
+        let ext: Buffer
+        do {
+          if (++headers > maxHeaders) throw new Error(TAR_CORRUPT)
+          ext = await src.read(BLOCK)
+          if (ext.length < BLOCK) throw new Error(TAR_CORRUPT)
+        } while (ext[504] !== 0)
+      }
 
       if (hasData && !(await src.skip(padded))) {
         // 본문 중간에 파일이 끝남(잘린 tar) 또는 gzip 해제 상한
