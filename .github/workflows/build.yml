@@ -26,6 +26,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # README 는 300줄 이내(CLAUDE.md). 넘치면 세부 내용을 docs/ 로 옮긴다.
+      - name: README 길이 점검
+        run: |
+          lines=$(wc -l < README.md)
+          echo "README.md: ${lines}줄"
+          if [ "$lines" -gt 300 ]; then
+            echo "::error file=README.md::README.md 가 ${lines}줄입니다. 300줄 이내로 줄이고 세부 내용은 docs/ 로 옮기세요."
+            exit 1
+          fi
+
       - name: Node 설정
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
