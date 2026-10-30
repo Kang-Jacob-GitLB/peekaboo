@@ -28,6 +28,8 @@ const TEXT = [
 // 포맷별 플러그인 목록. 순서 = 우선순위. load() 는 선택될 때만 호출된다.
 export const plugins: PluginEntry[] = [
   { id: 'image', extensions: IMAGE, load: () => import('./image') },
+  // 헤더 없는 카메라 프레임 덤프. 파일 크기로 해상도·포맷(NV12·YUYV·RGB 등)을 추정하고, 안 맞으면 폴백 카드
+  { id: 'raw', extensions: ['raw', 'yuv', 'nv12'], load: () => import('./raw') },
   // Markdown 은 HTML 과 같은 기본 창 크기로 연다(페이지가 아니라 화면 폭에 맞춰 흐르는 문서)
   { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], load: () => import('./markdown') },
   { id: 'html', extensions: ['html', 'htm', 'xhtml'], load: () => import('./html') },
