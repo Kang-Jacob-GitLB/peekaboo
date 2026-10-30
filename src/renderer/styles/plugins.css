@@ -19,6 +19,17 @@
   color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; opacity: 0.85;
 }
 .raw-format:hover, .raw-format:focus { opacity: 1; }
+/* 여러 장을 이어 붙인 덤프의 프레임 이동 막대 */
+.raw-frames {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px; font: 12px var(--mono);
+  color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; opacity: 0.85;
+}
+.raw-frames:hover, .raw-frames:focus-within { opacity: 1; }
+.raw-frames[hidden] { display: none; }
+.raw-frames button { padding: 0 4px; font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+.raw-frames input { width: 240px; }
+.raw-frames span { min-width: 7ch; text-align: right; }
 
 /* text / code */
 .text-view { display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
