@@ -3,6 +3,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import type { PreviewPlugin, RenderContext } from '../types'
 import { readBinary } from '../read-binary'
+import { mountToc, TOC_WIDTH, type TocEntry } from '../toc'
 
 // 워커는 번들에 포함된 로컬 파일을 쓴다(CSP worker-src 'self').
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
@@ -24,10 +25,24 @@ interface Slot {
 // CMap·표준 폰트·wasm 은 렌더러 출력의 pdfjs/ 아래에 같이 싣는다(electron.vite.config.ts). dev/file:// 모두 문서 기준 상대 경로.
 const assetUrl = (dir: string) => new URL(`./pdfjs/${dir}/`, document.baseURI).href
 
+type OutlineNode = Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]
+type Dest = OutlineNode['dest']
+
+/** 책갈피 트리 → 평평한 목록(이동할 곳이 없는 항목·URL 링크는 뺀다) */
+function flattenOutline(nodes: OutlineNode[] | null, level = 1, out: { title: string; level: number; dest: Dest }[] = []) {
+  for (const n of nodes ?? []) {
+    const title = n.title.replace(/\s+/g, ' ').trim()
+    if (title && n.dest) out.push({ title, level, dest: n.dest })
+    flattenOutline(n.items, level + 1, out)
+  }
+  return out
+}
+
 export function create(): PreviewPlugin {
   let loadingTask: PDFDocumentLoadingTask | undefined
   let observer: IntersectionObserver | undefined
   let resizeObs: ResizeObserver | undefined
+  let unmountToc: (() => void) | null = null
   return {
     async render(ctx: RenderContext) {
       const { container, signal, setSubtitle } = ctx
@@ -47,18 +62,24 @@ export function create(): PreviewPlugin {
       if (signal.aborted) return
 
       container.classList.add('pdf-view')
+      const scroll = document.createElement('div')
+      scroll.className = 'pdf-scroll'
       const pages = document.createElement('div')
       pages.className = 'pdf-pages'
-      container.append(pages)
+      scroll.append(pages)
+      container.append(scroll)
 
       const base = (await pdf.getPage(1)).getViewport({ scale: 1 })
+      // 책갈피를 못 읽으면 목차 없이 보여 준다
+      const outline = flattenOutline(await pdf.getOutline().catch(() => null))
       const slotOf = new Map<Element, Slot>()
       if (signal.aborted) return
-      // 창을 첫 페이지 비율(+ 여백)에 맞춘다. 페이지는 창 폭에 맞춰 그리므로 화면 한도까지 키운다.
-      ctx.fitContent({ width: base.width + PAD * 2, height: base.height + PAD * 2, grow: true })
+      // 창을 첫 페이지 비율(+ 여백, 목차 폭)에 맞춘다. 페이지는 창 폭에 맞춰 그리므로 화면 한도까지 키운다.
+      const tocW = outline.length >= 2 ? TOC_WIDTH : 0
+      ctx.fitContent({ width: base.width + PAD * 2 + tocW, height: base.height + PAD * 2, grow: true })
 
       // 창 폭에 맞춘 배율. 안 그린 페이지는 1쪽 비율로 자리만 잡고, 그릴 때 실제 크기로 보정한다.
-      const fitScale = () => Math.max(0.2, (container.clientWidth - PAD * 2) / base.width)
+      const fitScale = () => Math.max(0.2, (scroll.clientWidth - PAD * 2) / base.width)
       const placeholder = (s: Slot) => {
         const scale = fitScale()
         s.el.style.width = `${Math.floor(base.width * scale)}px`
@@ -110,7 +131,7 @@ export function create(): PreviewPlugin {
           }
         },
         // 화면 밖 한 화면 정도는 미리 그려 두고, 그 바깥으로 벗어나면 비운다.
-        { root: container, rootMargin: '100% 0px' }
+        { root: scroll, rootMargin: '100% 0px' }
       )
 
       const slots: Slot[] = []
@@ -127,10 +148,32 @@ export function create(): PreviewPlugin {
         observer.observe(el)
       }
 
-      // 창 폭이 바뀌면 그린 페이지를 비우고, 다시 관찰해 보이는 쪽만 즉시 재렌더한다.
-      let lastW = container.clientWidth
+      // 책갈피 → 해당 페이지(XYZ 대상이면 그 높이)로 스크롤
+      const jump = async (dest: Dest) => {
+        const explicit = typeof dest === 'string' ? await pdf.getDestination(dest) : dest
+        if (signal.aborted || !Array.isArray(explicit)) return
+        const ref = explicit[0]
+        const index = typeof ref === 'number' ? ref : await pdf.getPageIndex(ref)
+        const s = slots[index]
+        if (signal.aborted || !s) return
+        let y = 0
+        if (explicit[1]?.name === 'XYZ' && typeof explicit[3] === 'number') {
+          const vp = (await pdf.getPage(index + 1)).getViewport({ scale: fitScale() })
+          y = Math.max(0, vp.convertToViewportPoint(0, explicit[3])[1])
+        }
+        scroll.scrollTop = s.el.offsetTop + y - PAD / 2
+      }
+      const entries: TocEntry[] = outline.map((o) => ({
+        title: o.title,
+        level: o.level,
+        go: () => void jump(o.dest).catch((e) => console.warn('outline jump failed', e)),
+      }))
+      unmountToc = mountToc(container, scroll, entries)
+
+      // 창(본문) 폭이 바뀌면 그린 페이지를 비우고, 다시 관찰해 보이는 쪽만 즉시 재렌더한다.
+      let lastW = scroll.clientWidth
       resizeObs = new ResizeObserver(() => {
-        const w = container.clientWidth
+        const w = scroll.clientWidth
         if (Math.abs(w - lastW) < 2) return
         lastW = w
         for (const s of slots) {
@@ -140,11 +183,12 @@ export function create(): PreviewPlugin {
           observer?.observe(s.el)
         }
       })
-      resizeObs.observe(container)
+      resizeObs.observe(scroll)
 
       setSubtitle(`PDF · ${pdf.numPages}쪽`)
     },
     dispose() {
+      unmountToc?.()
       observer?.disconnect()
       resizeObs?.disconnect()
       void loadingTask?.destroy()

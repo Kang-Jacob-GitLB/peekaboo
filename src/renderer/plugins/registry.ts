@@ -28,7 +28,8 @@ const TEXT = [
 // 포맷별 플러그인 목록. 순서 = 우선순위. load() 는 선택될 때만 호출된다.
 export const plugins: PluginEntry[] = [
   { id: 'image', extensions: IMAGE, load: () => import('./image') },
-  { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], aspect: A4_PORTRAIT, load: () => import('./markdown') },
+  // Markdown 은 HTML 과 같은 기본 창 크기로 연다(페이지가 아니라 화면 폭에 맞춰 흐르는 문서)
+  { id: 'markdown', extensions: ['md', 'markdown', 'mdx'], load: () => import('./markdown') },
   { id: 'html', extensions: ['html', 'htm', 'xhtml'], load: () => import('./html') },
   { id: 'text', extensions: TEXT, load: () => import('./text') },
   // PDF 는 첫 페이지 크기로 다시 맞춘다

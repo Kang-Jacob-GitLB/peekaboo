@@ -41,8 +41,36 @@
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 700; }
 
+/* 목차 사이드바(toc.ts) — 본문 스크롤 영역(.toc-pane)은 오른쪽을 채운다 */
+.content.has-toc { display: flex; overflow: hidden; }
+.has-toc > .toc-pane { flex: 1; min-width: 0; width: auto; height: 100%; }
+.toc {
+  flex: none; display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg); border-right: 1px solid var(--border);
+}
+.toc-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  height: 32px; padding: 0 6px 0 12px; color: var(--fg-dim); font-size: 12px; font-weight: 600;
+}
+.toc-toggle {
+  width: 22px; height: 22px; padding: 0; font: inherit; font-size: 13px; line-height: 1;
+  color: var(--fg-dim); background: transparent; border: 0; border-radius: 4px; cursor: default;
+}
+.toc-toggle:hover { background: var(--code-bg); }
+.toc-list { flex: 1; min-height: 0; margin: 0; padding: 0 0 12px; list-style: none; overflow-y: auto; }
+.toc-list li {
+  padding: 4px 10px 4px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; cursor: default; border-left: 2px solid transparent;
+}
+.toc-list li:hover { background: var(--code-bg); }
+.toc-list li.active { color: var(--accent); background: var(--badge-bg); border-left-color: var(--accent); }
+.toc.collapsed { width: 34px; }
+.toc.collapsed .toc-head { justify-content: center; padding: 0; }
+.toc.collapsed .toc-head > span, .toc.collapsed .toc-list { display: none; }
+
 /* markdown — 모양은 github-markdown-css 가 맡고, 여기서는 배치와 코드 색만 맞춘다 */
 .md-view { background: var(--surface); }
+.md-scroll { height: 100%; overflow: auto; }
 .md-view .markdown-body {
   box-sizing: border-box; min-height: 100%;
   /* GitHub 처럼 본문 폭 최대 980px, 배경은 창 전체에 깐다 */
@@ -66,6 +94,7 @@
 
 /* pdf */
 .pdf-view { background: var(--bg); }
+.pdf-scroll { position: relative; height: 100%; overflow: auto; }
 .pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
 .pdf-page { flex: none; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
 .pdf-page canvas { display: block; width: 100%; height: 100%; }
