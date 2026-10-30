@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify'
 import 'github-markdown-css/github-markdown.css'
 import type { PreviewPlugin, RenderContext } from '../types'
 import { ensureLanguage, highlightSync, resolveLanguage } from '../text/highlight'
+import { headingEntries, mountToc } from '../toc'
 
 const MAX_BYTES = 2 * 1024 * 1024
 
@@ -61,10 +62,17 @@ export function create(): PreviewPlugin {
       alerts(frag)
 
       container.classList.add('md-view')
+      const scroll = document.createElement('div')
+      scroll.className = 'md-scroll'
       const article = document.createElement('article')
       article.className = 'markdown-body'
       article.append(frag)
-      container.append(article)
+      scroll.append(article)
+      container.append(scroll)
+      const unmountToc = mountToc(container, scroll, headingEntries(article), {
+        target: scroll,
+        viewTop: () => scroll.getBoundingClientRect().top,
+      })
 
       // 링크는 창을 이동시키지 않는다(main 도 차단하지만 렌더러에서 먼저 막는다).
       const block = (e: Event) => {
@@ -75,6 +83,7 @@ export function create(): PreviewPlugin {
       off = () => {
         container.removeEventListener('click', block)
         container.removeEventListener('auxclick', block)
+        unmountToc?.()
       }
 
       setSubtitle(res.truncated ? 'Markdown · 처음 2MB만 표시' : 'Markdown')

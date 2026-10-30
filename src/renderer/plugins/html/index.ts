@@ -1,4 +1,5 @@
 import type { PreviewPlugin, RenderContext } from '../types'
+import { headingEntries, mountToc } from '../toc'
 
 const MAX_BYTES = 2 * 1024 * 1024
 
@@ -12,6 +13,7 @@ const MAX_BYTES = 2 * 1024 * 1024
  */
 export function create(): PreviewPlugin {
   let off: (() => void) | undefined
+  let unmountToc: (() => void) | null = null
   return {
     async render({ file, container, signal, host, setSubtitle }: RenderContext) {
       const res = await host.readText(file.path, MAX_BYTES)
@@ -34,6 +36,9 @@ export function create(): PreviewPlugin {
         if (!doc) return
         doc.addEventListener('click', block)
         doc.addEventListener('auxclick', block)
+        // 제목 목차. 문서 스크롤은 iframe 안의 window 에서 일어난다.
+        if (signal.aborted || unmountToc || !frame.contentWindow) return
+        unmountToc = mountToc(container, frame, headingEntries(doc), { target: frame.contentWindow, viewTop: () => 0 })
       })
       off = () => frame.remove()
       container.append(frame)
@@ -41,6 +46,7 @@ export function create(): PreviewPlugin {
       setSubtitle(res.truncated ? 'HTML · 처음 2MB만 표시' : 'HTML')
     },
     dispose() {
+      unmountToc?.()
       off?.()
     },
   }
