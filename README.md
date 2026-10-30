@@ -28,6 +28,8 @@ Markdown·HTML 의 제목, PDF 의 책갈피가 2개 이상이면 왼쪽에 목�
 ## 지원 포맷
 
 - [x] 이미지: jpg, png, gif, webp, svg, bmp, ico, avif
+- [x] 헤더 없는 카메라 프레임(raw, yuv, nv12): 파일 크기로 해상도·포맷(NV12·NV21·I420·YUYV·UYVY·RGB·BGRA·Gray)을 추정, 오른쪽 위 선택 상자로 바꿔 보기.
+  DSLR RAW 처럼 크기가 흔한 해상도와 맞지 않으면 폴백 카드로 표시
 - [x] 텍스트 / 소스 코드 (구문 강조, UTF-8/UTF-16/CP949 자동 감지, 512KB까지)
   — 모르는 확장자라도 앞부분 4KB 가 텍스트로 보이면 텍스트로 표시(`.list`, 사내 설정 파일 등)
 - [x] Markdown (GitHub 과 같은 모양, 체크박스·`> [!NOTE]` 알림·본문 속 HTML 지원, 상대 경로 이미지는 대체 텍스트로 표시, 제목 목차)
