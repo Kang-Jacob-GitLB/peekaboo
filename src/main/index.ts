@@ -111,6 +111,8 @@ function start(): void {
   })
 
   helper.start()
+  // 첫 Space 에서 렌더러 기동을 기다리지 않도록 창을 미리 로드해 둔다
+  preview.prewarm()
 
   // 개발 전용: 헬퍼/키 입력 없이 미리보기 창만 확인한다.
   //   PEEKABOO_PREVIEW=<파일 경로> [PEEKABOO_CAPTURE=<png 경로>] npx electron .
