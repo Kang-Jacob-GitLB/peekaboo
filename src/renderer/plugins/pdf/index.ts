@@ -3,7 +3,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import type { PreviewPlugin, RenderContext } from '../types'
 import { readBinary } from '../read-binary'
-import { mountToc, TOC_WIDTH, type TocEntry } from '../toc'
+import { mountToc, TOC_MAX, TOC_WIDTH, type TocEntry } from '../toc'
 
 // 워커는 번들에 포함된 로컬 파일을 쓴다(CSP worker-src 'self').
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
@@ -167,8 +167,10 @@ export function create(): PreviewPlugin {
         title: o.title,
         level: o.level,
         go: () => void jump(o.dest).catch((e) => console.warn('outline jump failed', e)),
-      }))
+      })).slice(0, TOC_MAX)
       unmountToc = mountToc(container, scroll, entries)
+      // 목차가 붙으면 본문 폭이 줄어든다. 자리만 잡은 페이지 크기를 다시 맞춘다.
+      if (unmountToc) for (const s of slots) placeholder(s)
 
       // 창(본문) 폭이 바뀌면 그린 페이지를 비우고, 다시 관찰해 보이는 쪽만 즉시 재렌더한다.
       let lastW = scroll.clientWidth

@@ -4,6 +4,8 @@
 
 /** 사이드바 폭(CSS px). 창 크기를 내용에 맞출 때 더한다. */
 export const TOC_WIDTH = 240
+/** 목차 항목 상한. 미리보기 파일은 신뢰하지 않으므로 제목이 수만 개여도 목록·스크롤 추적이 무거워지지 않게 자른다. */
+export const TOC_MAX = 1000
 
 export interface TocEntry {
   title: string
@@ -100,11 +102,12 @@ export function mountToc(container: HTMLElement, pane: HTMLElement, entries: Toc
   }
 }
 
-/** 제목 요소(h1~h6) 목록 → 목차 항목. 내용이 빈 제목은 뺀다. */
+/** 제목 요소(h1~h6) 목록 → 목차 항목. 내용이 비었거나 화면에 안 보이는(display:none) 제목은 뺀다. */
 export function headingEntries(root: ParentNode): TocEntry[] {
   return Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6'))
     .map((h) => ({ h, title: (h.textContent ?? '').replace(/\s+/g, ' ').trim() }))
-    .filter(({ title }) => title)
+    .filter(({ h, title }) => title && h.getClientRects().length > 0)
+    .slice(0, TOC_MAX)
     .map(({ h, title }) => ({
       title,
       level: Number(h.tagName[1]),
