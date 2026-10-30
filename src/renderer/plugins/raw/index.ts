@@ -3,6 +3,7 @@ import { readBinary } from '../read-binary'
 
 // 헤더 없는 카메라 프레임 덤프(.raw/.yuv/.nv12). 파일에 해상도·포맷 정보가 없으므로
 // 파일 크기 = 가로 × 세로 × 픽셀당 바이트 가 되는 조합을 후보로 만들고, 헤더의 선택 상자로 바꿔 볼 수 있게 한다.
+// 캡처 도구가 여러 장을 그대로 이어 붙인 덤프도 있어, 크기가 한 장의 정수 배이면 여러 프레임으로 보고 아래 막대로 넘겨 본다.
 
 type Format = 'nv12' | 'nv21' | 'i420' | 'yuyv' | 'uyvy' | 'rgb24' | 'bgr24' | 'rgba' | 'bgra' | 'gray'
 
@@ -23,18 +24,27 @@ const RESOLUTIONS: [number, number][] = [
   [1280, 1024], [1600, 1200], [2048, 1536], [2560, 1440], [2592, 1944], [4096, 2160],
 ]
 
-interface Candidate { format: Format; width: number; height: number }
+// 이보다 많으면 우연히 나눠떨어진 것으로 본다(작은 해상도일수록 아무 크기나 나눠떨어지기 쉽다)
+const MAX_FRAMES = 1000
 
+interface Candidate { format: Format; width: number; height: number; frames: number }
+
+/** 한 장과 정확히 맞는 후보를 먼저, 그다음 여러 장으로 나눠떨어지는 후보를 둔다 */
 function findCandidates(size: number): Candidate[] {
-  const out: Candidate[] = []
+  const single: Candidate[] = []
+  const multi: Candidate[] = []
   for (const [width, height] of RESOLUTIONS) {
     for (const { bytesPerPixel, formats } of FORMAT_GROUPS) {
-      if (width * height * bytesPerPixel !== size) continue
-      for (const format of formats) out.push({ format, width, height })
+      const frameBytes = width * height * bytesPerPixel
+      const frames = size / frameBytes
+      if (!Number.isInteger(frames) || frames < 1 || frames > MAX_FRAMES) continue
+      for (const format of formats) (frames === 1 ? single : multi).push({ format, width, height, frames })
     }
   }
-  return out
+  return [...single, ...multi]
 }
+
+const frameBytes = (c: Candidate) => c.width * c.height * FORMAT_GROUPS.find((g) => g.formats.includes(c.format))!.bytesPerPixel
 
 /**
  * YUV420 세 종류 중 NV12/NV21(UV 가 바이트마다 번갈아 옴)과 I420(U·V 평면이 따로)을 가른다.
@@ -128,7 +138,8 @@ function decode(data: Uint8Array, { format, width: w, height: h }: Candidate): I
   return img
 }
 
-const label = (c: Candidate) => `${c.format.toUpperCase()} · ${c.width}×${c.height}`
+const label = (c: Candidate) =>
+  `${c.format.toUpperCase()} · ${c.width}×${c.height}` + (c.frames > 1 ? ` · ${c.frames}장` : '')
 
 export function create(): PreviewPlugin {
   // 크기가 어떤 프레임과도 맞지 않으면 폴백 카드(또는 텍스트)로 넘긴다
@@ -159,20 +170,48 @@ export function create(): PreviewPlugin {
       select.className = 'raw-format'
       select.title = '헤더가 없는 파일이라 크기로 추정했습니다. 다르게 보이면 형식을 바꿔 보세요.'
       candidates.forEach((c, i) => select.add(new Option(label(c), String(i), false, c === current)))
-      container.append(canvas, select)
 
+      // 여러 장이면 아래쪽 막대: ◀ [슬라이더] ▶ 3 / 11
+      const bar = document.createElement('div')
+      bar.className = 'raw-frames'
+      const prev = Object.assign(document.createElement('button'), { textContent: '◀', title: '이전 프레임' })
+      const next = Object.assign(document.createElement('button'), { textContent: '▶', title: '다음 프레임' })
+      const slider = Object.assign(document.createElement('input'), { type: 'range', min: '0', step: '1' })
+      const counter = document.createElement('span')
+      bar.append(prev, slider, next, counter)
+      container.append(canvas, select, bar)
+
+      let frame = 0
+      const draw = () => {
+        const bytes = frameBytes(current)
+        const slice = data.subarray(frame * bytes, (frame + 1) * bytes)
+        canvas.getContext('2d')!.putImageData(decode(slice, current), 0, 0)
+        slider.value = String(frame)
+        counter.textContent = `${frame + 1} / ${current.frames}`
+      }
       const show = (c: Candidate) => {
+        current = c
+        frame = Math.min(frame, c.frames - 1)
         canvas.width = c.width
         canvas.height = c.height
         canvas.style.maxWidth = `min(100%, ${c.width}px)`
         canvas.style.maxHeight = `min(100%, ${c.height}px)`
-        canvas.getContext('2d')!.putImageData(decode(data, c), 0, 0)
+        bar.hidden = c.frames === 1
+        slider.max = String(c.frames - 1)
+        draw()
         setSubtitle(`RAW · ${label(c)}`)
         // .image-view 의 padding 12px 를 더한다
         fitContent({ width: c.width + 24, height: c.height + 24 })
       }
+      const go = (i: number) => {
+        frame = (i + current.frames) % current.frames
+        draw()
+      }
       show(current)
       select.addEventListener('change', () => show(candidates[Number(select.value)]))
+      slider.addEventListener('input', () => go(Number(slider.value)))
+      prev.addEventListener('click', () => go(frame - 1))
+      next.addEventListener('click', () => go(frame + 1))
       // 후보가 하나뿐이면 고를 것이 없다
       if (candidates.length === 1) select.hidden = true
     },
