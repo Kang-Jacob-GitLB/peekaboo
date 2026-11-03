@@ -12,6 +12,9 @@ const api: PeekabooApi = {
   onHide: (cb) => {
     ipcRenderer.on(Channels.hide, () => cb())
   },
+  onCopied: (cb) => {
+    ipcRenderer.on(Channels.copied, () => cb())
+  },
   readText: (path, maxBytes) => ipcRenderer.invoke(Channels.readText, path, maxBytes),
   listDir: (path, max) => ipcRenderer.invoke(Channels.listDir, path, max),
   listArchive: (path, max) => ipcRenderer.invoke(Channels.listArchive, path, max),

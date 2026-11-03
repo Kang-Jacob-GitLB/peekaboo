@@ -4,6 +4,7 @@ export const Channels = {
   show: 'preview:show',
   showError: 'preview:show-error',
   hide: 'preview:hide',
+  copied: 'preview:copied',
   readText: 'preview:read-text',
   listDir: 'preview:list-dir',
   listArchive: 'preview:list-archive',

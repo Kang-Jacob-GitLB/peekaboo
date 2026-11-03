@@ -147,6 +147,22 @@ host.onShowError((e) => {
 
 host.onHide(() => teardown())
 
+// 우클릭 복사 알림(복사 자체는 main 이 한다)
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+host.onCopied(() => {
+  let toast = document.querySelector<HTMLElement>('.toast')
+  if (!toast) {
+    toast = document.createElement('div')
+    toast.className = 'toast'
+    toast.setAttribute('role', 'status')
+    toast.textContent = '복사했습니다'
+    document.body.append(toast)
+  }
+  toast.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1200)
+})
+
 /** ipcRenderer.invoke 가 붙이는 "Error invoking remote method '…': Error: " 접두어를 떼고 사람이 읽을 메시지만 */
 function errorText(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)

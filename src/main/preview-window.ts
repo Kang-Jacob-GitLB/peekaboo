@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron'
+import { BrowserWindow, clipboard, ipcMain, nativeTheme, screen } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
@@ -264,6 +264,17 @@ export class PreviewWindow {
     // HTML 미리보기 iframe(srcdoc)이 링크·<area>·<base> 등으로 다른 문서로 옮겨 가지 못하게 한다
     win.webContents.on('will-frame-navigate', (e) => {
       if (!e.isMainFrame && !e.url.startsWith('about:')) e.preventDefault()
+    })
+    // 텍스트 복사: 창이 focusable:false 라 Ctrl+C 는 탐색기로 간다(탐색기 포커스 유지가 이 앱의 전제).
+    // 드래그 선택은 비포커스 창에서도 되므로, 우클릭하면 선택한 텍스트를 main 이 바로 클립보드에 쓴다.
+    // 렌더러의 navigator.clipboard 는 문서가 포커스가 아니면 거부되고, HTML 미리보기 iframe 안 선택도
+    // selectionText 에 들어오므로 main 에서 처리한다. 팝업 메뉴는 비포커스 창에서 바깥 클릭으로 닫히지 않을 수 있어 띄우지 않는다.
+    win.webContents.on('context-menu', (_e, params) => {
+      const text = params.selectionText
+      if (!text.trim()) return
+      clipboard.writeText(text)
+      win.webContents.send(Channels.copied)
+      log.info(`copied ${text.length} chars`)
     })
     win.webContents.on('render-process-gone', (_e, details) => {
       log.error(`renderer gone: ${details.reason}`)

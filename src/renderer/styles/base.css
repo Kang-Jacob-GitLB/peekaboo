@@ -91,3 +91,10 @@ main { flex: 1; min-height: 0; position: relative; }
 .fb-name { font-size: 16px; font-weight: 600; max-width: 100%; overflow-wrap: anywhere; }
 .fb-meta, .fb-msg { color: var(--fg-dim); }
 .fb-msg { margin-top: 8px; }
+.toast {
+  position: fixed; left: 50%; bottom: 18px; z-index: 10; transform: translateX(-50%);
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; pointer-events: none;
+  color: var(--fg); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0; transition: opacity 0.15s;
+}
+.toast.show { opacity: 1; }

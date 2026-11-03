@@ -90,6 +90,8 @@ export interface PeekabooApi {
   onShowError(cb: (err: ShowError) => void): void
   /** 창이 숨겨지기 직전 — 재생 중인 미디어 정지 등 정리용 */
   onHide(cb: () => void): void
+  /** 선택한 텍스트를 우클릭으로 클립보드에 복사했을 때(복사는 main 이 한다) */
+  onCopied(cb: () => void): void
   /** 현재 표시 중인 파일만 읽을 수 있다(main 이 검증). */
   readText(path: string, maxBytes: number): Promise<TextResult>
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */
