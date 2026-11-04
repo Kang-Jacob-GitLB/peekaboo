@@ -89,6 +89,7 @@ internal static class Program
             {
                 case HostCommand.Config c: core.SetEnabled(c.Enabled); break;
                 case HostCommand.State s: core.SetPreviewOpen(s.PreviewOpen); break;
+                case HostCommand.TextSelection t: core.SetTextSelected(t.Selected); break;
                 case HostCommand.GetSelection g: core.RequestSelection(g.Id); break;
                 case HostCommand.Ping p: core.Ping(() => Outgoing.Pong(channel, p.Id)); break;
                 case HostCommand.NativePreviewOpen o: nativePreview.Open(o.Id, o.Path, o.Hwnd, o.Rect, o.Dark); break;

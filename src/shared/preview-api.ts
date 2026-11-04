@@ -92,6 +92,10 @@ export interface PeekabooApi {
   onHide(cb: () => void): void
   /** 선택한 텍스트를 우클릭으로 클립보드에 복사했을 때(복사는 main 이 한다) */
   onCopied(cb: () => void): void
+  /** 텍스트 선택이 생기거나 없어질 때 알린다. 선택이 있을 때만 헬퍼가 Ctrl+C 를 가로챈다(없으면 탐색기의 파일 복사). */
+  textSelected(selected: boolean): void
+  /** Ctrl+C 를 눌렀을 때 main 이 선택한 텍스트를 묻는다. 돌려준 문자열을 main 이 클립보드에 쓴다. */
+  onCopyRequest(cb: () => string): void
   /** 현재 표시 중인 파일만 읽을 수 있다(main 이 검증). */
   readText(path: string, maxBytes: number): Promise<TextResult>
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */

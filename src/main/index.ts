@@ -31,7 +31,11 @@ function start(): void {
 
   const helper = new HelperSupervisor()
   const native = new NativePreviewBridge((msg) => helper.send(msg))
-  const preview = new PreviewWindow(() => getSettings().keepWarmSeconds, native)
+  const preview = new PreviewWindow(
+    () => getSettings().keepWarmSeconds,
+    native,
+    (selected) => helper.send({ v: 1, type: 'textSelection', selected })
+  )
   handlePeekProtocol((path) => preview.isAllowedPath(path))
   blockRemoteFileRequests((path) => preview.isAllowedPath(path))
 
@@ -81,6 +85,7 @@ function start(): void {
         // 여는 중(getSelection 응답 대기)에 다시 Space 를 누르면 취소로 본다
         if (msg.key === 'space') preview.isOpen || pendingOpen.size > 0 ? closePreview() : openPreview()
         else if (msg.key === 'esc' || msg.key === 'enter') closePreview()
+        else if (msg.key === 'copy') preview.copySelection()
         // 방향키: 탐색기가 선택을 옮기고, 헬퍼가 selection 알림을 보낸다
         break
       case 'selection':
