@@ -11,7 +11,8 @@ internal static class Protocol
     public const int Version = 1;
 }
 
-internal enum KeyName { Space, Esc, Enter, Up, Down, Left, Right }
+/// <summary>Copy = 미리보기에 텍스트가 선택된 채 누른 Ctrl+C</summary>
+internal enum KeyName { Space, Esc, Enter, Up, Down, Left, Right, Copy }
 
 internal enum SelectionSource { Explorer, Desktop }
 
@@ -41,6 +42,7 @@ internal static class Outgoing
         KeyName.Up => "up",
         KeyName.Down => "down",
         KeyName.Left => "left",
+        KeyName.Copy => "copy",
         _ => "right",
     };
 
@@ -109,6 +111,7 @@ internal abstract record HostCommand
 {
     public sealed record Config(bool Enabled) : HostCommand;
     public sealed record State(bool PreviewOpen) : HostCommand;
+    public sealed record TextSelection(bool Selected) : HostCommand;
     public sealed record GetSelection(int Id) : HostCommand;
     public sealed record Ping(int Id) : HostCommand;
     public sealed record Shutdown : HostCommand;
@@ -130,6 +133,7 @@ internal abstract record HostCommand
             {
                 "config" => new Config(root.GetProperty("enabled").GetBoolean()),
                 "state" => new State(root.GetProperty("previewOpen").GetBoolean()),
+                "textSelection" => new TextSelection(root.GetProperty("selected").GetBoolean()),
                 "getSelection" => new GetSelection(root.GetProperty("id").GetInt32()),
                 "ping" => new Ping(root.GetProperty("id").GetInt32()),
                 "shutdown" => new Shutdown(),

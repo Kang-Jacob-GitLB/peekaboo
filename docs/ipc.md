@@ -12,7 +12,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | type | 필드 | 설명 |
 |---|---|---|
 | `ready` | `version`, `pid` | 키보드 훅 설치 완료 |
-| `key` | `key`: `space`·`esc`·`enter`·`up`·`down`·`left`·`right`, `consumed` | 탐색기/바탕화면 파일 뷰가 포커스일 때 관련 키 입력. `consumed=true` 면 헬퍼가 키를 삼켰음 |
+| `key` | `key`: `space`·`esc`·`enter`·`up`·`down`·`left`·`right`·`copy`, `consumed` | 탐색기/바탕화면 파일 뷰가 포커스일 때 관련 키 입력. `consumed=true` 면 헬퍼가 키를 삼켰음 |
 | `selection` | `id?`, `paths[]`, `focused`, `source`: `explorer`·`desktop`, `hwnd` | `getSelection` 응답(`id` 있음) 또는 선택 변경 알림(`id` 없음) |
 | `pong` | `id` | `ping` 응답 |
 | `error` | `id?`, `code`, `message` | 복구 가능한 오류. `ELEVATED`(관리자 권한 창), `NO_VIEW`, `COM_FAIL`, `BAD_MESSAGE`, `INTERNAL` |
@@ -25,6 +25,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 |---|---|---|
 | `config` | `enabled` | 단축키 on/off. `false` 면 어떤 키도 가로채지 않는다 |
 | `state` | `previewOpen` | 미리보기 열림 여부. 열려 있을 때만 Esc 를 삼키고 선택 변경 감시를 켠다 |
+| `textSelection` | `selected` | 미리보기 창에 텍스트가 선택돼 있는지. `true` 인 동안만 Ctrl+C 를 삼킨다. `state{previewOpen:false}` 를 받으면 헬퍼가 `false` 로 되돌린다 |
 | `getSelection` | `id` | 포그라운드 탐색기/바탕화면의 현재 선택 조회 |
 | `ping` | `id` | 생존 확인. Electron 은 2초 간격으로 보내고 연속 3회 무응답이면 헬퍼를 재시작한다 |
 | `shutdown` | — | 정상 종료 요청 |
@@ -42,7 +43,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 
 ## 키 처리 규칙
 
-헬퍼가 키를 "가로챌 수 있는" 조건: 단축키 활성 + 포그라운드가 탐색기(`CabinetWClass`) 또는 바탕화면(`Progman`/`WorkerW`) + 키보드 포커스가 파일 뷰(`SHELLDLL_DefView` 하위 `DirectUIHWND`, 바탕화면은 `SysListView32`) + 캐럿 없음 + 수정키(Ctrl/Alt/Win) 미입력.
+헬퍼가 키를 "가로챌 수 있는" 조건: 단축키 활성 + 포그라운드가 탐색기(`CabinetWClass`) 또는 바탕화면(`Progman`/`WorkerW`) + 키보드 포커스가 파일 뷰(`SHELLDLL_DefView` 하위 `DirectUIHWND`, 바탕화면은 `SysListView32`) + 캐럿 없음 + 수정키(Ctrl/Alt/Win) 미입력(Ctrl+C 만 예외: Ctrl 단독 조합일 때만 다룬다).
 
 | 키 | 미리보기 닫힘 | 미리보기 열림 |
 |---|---|---|
@@ -50,6 +51,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | Esc | 통과 | 삼킴 → `key` 전송 (닫기) |
 | 방향키 | 통과 | 통과(탐색기가 선택 이동) + `key(consumed=false)` 전송, 선택 변경은 `selection` 알림으로 |
 | Enter | 통과 | 통과(탐색기가 기본 앱으로 열기) + `key(consumed=false)` 전송 → Electron 이 미리보기 닫기 |
+| Ctrl+C | 통과(탐색기 파일 복사) | `textSelection=true` 면 삼킴 → `key(copy)` 전송 (Electron 이 선택한 텍스트를 클립보드에 쓰기), 아니면 통과 |
 
 ## 예시
 

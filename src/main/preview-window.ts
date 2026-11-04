@@ -55,12 +55,24 @@ export class PreviewWindow {
   /** 창을 띄우기 전에 받은 크기 요청(undefined = 아직 없음, null = 기본 크기) */
   private firstFit: ContentSize | null | undefined
   private firstFitWaiter: (() => void) | null = null
+  /** 보이는 창에 텍스트가 선택돼 있는지(렌더러가 알려 준 값) */
+  private textSelected = false
+  /** 응답을 기다리는 Ctrl+C 복사 요청 번호(0 = 없음) */
+  private pendingCopy = 0
+  private copySeq = 0
 
   constructor(
     private readonly keepWarmSeconds: () => number,
-    private readonly native: NativePreviewBridge
+    private readonly native: NativePreviewBridge,
+    /** 텍스트 선택 여부가 바뀌었을 때(헬퍼의 Ctrl+C 가로채기 판단용) */
+    private readonly onTextSelection: (selected: boolean) => void
   ) {
     this.registerIpc()
+  }
+
+  /** 보이는 창에 텍스트가 선택돼 있는지(헬퍼 재시작 때 다시 알리는 데 쓴다) */
+  get hasTextSelection(): boolean {
+    return this.textSelected
   }
 
   /** 보이는 중이거나 띄우는 중 */
@@ -134,6 +146,7 @@ export class PreviewWindow {
     if (!this.win || (!wasVisible && !wasOpening)) return
     this.visible = false
     this.currentPath = null
+    this.resetTextSelection()
     this.native.closeAll('hidden')
     this.win.webContents.send(Channels.hide)
     this.win.hide()
@@ -146,6 +159,24 @@ export class PreviewWindow {
     const keep = this.keepWarmSeconds()
     if (keep <= 0) this.scheduleRecycle()
     else this.destroyTimer = setTimeout(() => this.scheduleRecycle(), keep * 1000)
+  }
+
+  /**
+   * Ctrl+C: 렌더러에 선택한 텍스트를 물어 클립보드에 쓴다. 창이 focusable:false 라 키는 탐색기로 가므로
+   * 헬퍼가 (텍스트가 선택돼 있을 때만) 삼켜서 알려 준다. 응답은 registerIpc 의 copyText 에서 처리한다.
+   */
+  copySelection(): void {
+    const win = this.win
+    if (!this.visible || !win || win.isDestroyed()) return
+    this.pendingCopy = ++this.copySeq
+    win.webContents.send(Channels.copyRequest, this.pendingCopy)
+  }
+
+  private resetTextSelection(): void {
+    this.pendingCopy = 0
+    if (!this.textSelected) return
+    this.textSelected = false
+    this.onTextSelection(false)
   }
 
   /** 시작할 때 창을 숨긴 채 미리 만들어 로드해 둔다. 이미 있으면 아무것도 하지 않는다. */
@@ -195,6 +226,7 @@ export class PreviewWindow {
     this.visible = false
     this.openingSeq = 0
     this.currentPath = null
+    this.resetTextSelection()
     this.native.closeAll('destroyed')
     this.loaded = null
     if (this.win && !this.win.isDestroyed()) this.win.destroy()
@@ -269,13 +301,7 @@ export class PreviewWindow {
     // 드래그 선택은 비포커스 창에서도 되므로, 우클릭하면 선택한 텍스트를 main 이 바로 클립보드에 쓴다.
     // 렌더러의 navigator.clipboard 는 문서가 포커스가 아니면 거부되고, HTML 미리보기 iframe 안 선택도
     // selectionText 에 들어오므로 main 에서 처리한다. 팝업 메뉴는 비포커스 창에서 바깥 클릭으로 닫히지 않을 수 있어 띄우지 않는다.
-    win.webContents.on('context-menu', (_e, params) => {
-      const text = params.selectionText
-      if (!text.trim()) return
-      clipboard.writeText(text)
-      win.webContents.send(Channels.copied)
-      log.info(`copied ${text.length} chars`)
-    })
+    win.webContents.on('context-menu', (_e, params) => copyText(win, params.selectionText, 'right-click'))
     win.webContents.on('render-process-gone', (_e, details) => {
       log.error(`renderer gone: ${details.reason}`)
       // 여기서는 새 창을 만들지 않는다(기동 직후 죽는 렌더러가 무한히 재생성되지 않게). 다음 show() 가 만든다.
@@ -296,6 +322,7 @@ export class PreviewWindow {
         this.win = null
         this.loaded = null
         this.visible = false
+        this.resetTextSelection()
       }
       if (this.spare?.win === win) this.spare = null
     })
@@ -397,6 +424,20 @@ export class PreviewWindow {
       } else if (size === null) this.position(win)
       else this.fit(win, size)
     })
+    ipcMain.on(Channels.textSelected, (e, selected: unknown) => {
+      // 띄우기 전·닫은 뒤의 알림은 무시한다(닫을 때 resetTextSelection 이 false 로 맞춘다)
+      if (!fromPreview(e.sender) || !this.visible || typeof selected !== 'boolean' || selected === this.textSelected) return
+      this.textSelected = selected
+      this.onTextSelection(selected)
+    })
+    ipcMain.on(Channels.copyText, (e, id: unknown, text: unknown) => {
+      const win = this.win
+      // 요청 없이 온 응답(id 0 포함)은 버린다: 사용자가 Ctrl+C 를 누르지 않았는데 클립보드를 덮어쓰지 않게
+      if (!fromPreview(e.sender) || !win || !this.visible || this.pendingCopy === 0 || id !== this.pendingCopy) return
+      if (typeof text !== 'string') return
+      this.pendingCopy = 0
+      copyText(win, text, 'ctrl+c')
+    })
     ipcMain.on(Channels.rendered, (e, seq: number) => {
       if (!fromPreview(e.sender)) return
       const t0 = this.pendingT0.get(seq)
@@ -404,6 +445,14 @@ export class PreviewWindow {
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
     })
   }
+}
+
+/** 선택한 텍스트를 클립보드에 쓰고 렌더러에 '복사했습니다' 알림을 띄우게 한다. 공백뿐이면 아무것도 하지 않는다. */
+function copyText(win: BrowserWindow, text: string, via: 'right-click' | 'ctrl+c'): void {
+  if (!text.trim() || win.isDestroyed()) return
+  clipboard.writeText(text)
+  win.webContents.send(Channels.copied)
+  log.info(`copied ${text.length} chars (${via})`)
 }
 
 /** 처음 띄울 때: 커서가 있는 모니터 */

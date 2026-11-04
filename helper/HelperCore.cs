@@ -34,6 +34,7 @@ internal sealed class HelperCore : IDisposable
 
     private volatile bool _enabled = true;
     private volatile bool _previewOpen;
+    private volatile bool _textSelected; // 미리보기 창에 텍스트가 선택돼 있음 → Ctrl+C 를 가로챈다
     private volatile FileViewTarget? _lastTarget;
     private SelectionResult? _lastSent; // STA 전용
     private bool _refreshPending;       // STA 전용
@@ -61,9 +62,12 @@ internal sealed class HelperCore : IDisposable
 
     public void SetEnabled(bool enabled) => _enabled = enabled;
 
+    public void SetTextSelected(bool selected) => _textSelected = selected;
+
     public void SetPreviewOpen(bool open)
     {
         _previewOpen = open;
+        if (!open) _textSelected = false;
         _sta.Post(() =>
         {
             if (open)
@@ -118,11 +122,19 @@ internal sealed class HelperCore : IDisposable
         if (key is null) return false;
 
         if (isKeyUp) return _swallowed.Remove(vk);
-        if (_swallowed.Contains(vk)) return true; // 삼킨 키의 자동 반복
+        if (_swallowed.Contains(vk))
+        {
+            // 삼킨 키의 자동 반복. LL 훅은 비동기 키 상태가 갱신되기 전에 불리므로 자동 반복이면 아직 '눌림'이다.
+            // '안 눌림'이면 key-up 을 놓친 것(보안 데스크톱 전환 등)이라 새 입력으로 처리한다 — 그대로 두면 다음 'c' 가 삼켜진다.
+            if ((PInvoke.GetAsyncKeyState((int)vk) & 0x8000) != 0) return true;
+            _swallowed.Remove(vk);
+        }
 
         if (!_enabled || ModifierHeld(key.Value)) return false;
 
         bool open = _previewOpen;
+        // Ctrl+C 는 미리보기에 텍스트가 선택돼 있을 때만 가로챈다. 아니면 탐색기의 파일 복사로 통과시킨다.
+        if (key.Value == KeyName.Copy && !(open && _textSelected)) return false;
         var target = FocusInspector.GetFileViewTarget();
         if (target is null)
         {
@@ -140,6 +152,7 @@ internal sealed class HelperCore : IDisposable
         {
             case KeyName.Space: consume = true; emit = true; break;
             case KeyName.Esc: consume = open; emit = open; break;
+            case KeyName.Copy: consume = true; emit = true; break;
             default: consume = false; emit = open; break; // 방향키·Enter 는 탐색기가 처리하도록 통과
         }
 
@@ -174,13 +187,20 @@ internal sealed class HelperCore : IDisposable
         VIRTUAL_KEY.VK_DOWN => KeyName.Down,
         VIRTUAL_KEY.VK_LEFT => KeyName.Left,
         VIRTUAL_KEY.VK_RIGHT => KeyName.Right,
+        VIRTUAL_KEY.VK_C => KeyName.Copy,
         _ => null,
     };
 
-    /// <summary>Ctrl/Alt/Win 조합은 탐색기 단축키이므로 건드리지 않는다. Shift 는 Space 일 때만 제외(Shift+방향키 = 선택 확장).</summary>
+    /// <summary>
+    /// Ctrl/Alt/Win 조합은 탐색기 단축키이므로 건드리지 않는다. Shift 는 Space 일 때만 제외(Shift+방향키 = 선택 확장).
+    /// Copy(C 키)는 반대로 Ctrl 단독 조합(Ctrl+C)일 때만 다룬다.
+    /// </summary>
     private static bool ModifierHeld(KeyName key)
     {
         static bool Down(VIRTUAL_KEY k) => (PInvoke.GetAsyncKeyState((int)k) & 0x8000) != 0;
+        if (key == KeyName.Copy)
+            return !Down(VIRTUAL_KEY.VK_CONTROL) || Down(VIRTUAL_KEY.VK_SHIFT) || Down(VIRTUAL_KEY.VK_MENU)
+                || Down(VIRTUAL_KEY.VK_LWIN) || Down(VIRTUAL_KEY.VK_RWIN);
         if (Down(VIRTUAL_KEY.VK_CONTROL) || Down(VIRTUAL_KEY.VK_MENU) || Down(VIRTUAL_KEY.VK_LWIN) || Down(VIRTUAL_KEY.VK_RWIN))
             return true;
         return key == KeyName.Space && Down(VIRTUAL_KEY.VK_SHIFT);

@@ -32,6 +32,9 @@ function teardown(): void {
   current.abort = null
   current.plugin = null
   main.replaceChildren()
+  // 내용을 지우면 선택도 사라진다(지운 iframe 의 문서는 selectionchange 를 더 보내지 않는다)
+  lastSelectionDoc = null
+  reportSelection()
 }
 
 function nextPaint(): Promise<void> {
@@ -45,6 +48,7 @@ function setHeader(p: ShowPayload): void {
   elBadge.hidden = p.selectionCount <= 1
   elBadge.textContent = `선택 ${p.selectionCount}개`
   elSub.textContent = p.file.isDirectory ? '' : p.file.ext.toUpperCase()
+  reportSelection() // 헤더 글자를 선택해 둔 채 파일을 넘기면 그 선택도 사라진다
 }
 
 async function show(payload: ShowPayload): Promise<void> {
@@ -126,6 +130,7 @@ host.onShowError((e) => {
   elSize.textContent = ''
   elBadge.hidden = true
   elSub.textContent = ''
+  reportSelection()
   const view = document.createElement('div')
   view.className = 'content error-view'
   for (const [cls, text] of [
@@ -147,7 +152,65 @@ host.onShowError((e) => {
 
 host.onHide(() => teardown())
 
-// 우클릭 복사 알림(복사 자체는 main 이 한다)
+// ---- 텍스트 선택과 Ctrl+C 복사 ----
+// 창이 포커스를 갖지 않아 Ctrl+C 는 탐색기로 간다. 선택이 있는 동안만 헬퍼가 Ctrl+C 를 가로채도록 선택 여부를 알리고,
+// 가로챈 Ctrl+C 는 main 이 onCopyRequest 로 선택한 텍스트를 받아 클립보드에 쓴다.
+// HTML 미리보기 iframe(allow-same-origin)의 문서는 선택을 따로 가지므로 iframe 이 로드될 때 같이 구독한다.
+const selectionDocs = new Set<Document>()
+let lastSelectionDoc: Document | null = null
+let reportedSelected = false
+
+function liveDocs(): Document[] {
+  for (const d of selectionDocs) if (d !== document && !d.defaultView) selectionDocs.delete(d) // 제거된 iframe
+  return [...selectionDocs]
+}
+
+/** 복사할 글자가 있는 선택만 센다(이미지만·공백만 선택했으면 Ctrl+C 는 탐색기의 파일 복사로 둔다) */
+function hasSelection(doc: Document): boolean {
+  const sel = doc.getSelection()
+  return !!sel && sel.rangeCount > 0 && !sel.isCollapsed && sel.toString().trim() !== ''
+}
+
+function reportSelection(doc?: Document): void {
+  if (doc && hasSelection(doc)) lastSelectionDoc = doc
+  const selected = liveDocs().some(hasSelection)
+  if (selected === reportedSelected) return
+  reportedSelected = selected
+  host.textSelected(selected)
+}
+
+function watchSelection(doc: Document): void {
+  if (selectionDocs.has(doc)) return
+  selectionDocs.add(doc)
+  doc.addEventListener('selectionchange', () => reportSelection(doc))
+}
+
+watchSelection(document)
+// iframe 의 load 는 버블링하지 않으므로 캡처 단계에서 받는다
+document.addEventListener(
+  'load',
+  (e) => {
+    if (!(e.target instanceof HTMLIFrameElement)) return
+    try {
+      const doc = e.target.contentDocument
+      if (doc) watchSelection(doc)
+    } catch {
+      // 다른 출처 문서는 읽을 수 없다
+    }
+  },
+  true
+)
+
+host.onCopyRequest(() => {
+  // 가장 최근에 선택한 문서를 먼저, 없으면 선택이 남아 있는 아무 문서
+  const docs = liveDocs()
+  const doc = lastSelectionDoc && docs.includes(lastSelectionDoc) && hasSelection(lastSelectionDoc)
+    ? lastSelectionDoc
+    : docs.find(hasSelection)
+  return doc?.getSelection()?.toString() ?? ''
+})
+
+// 복사 알림(복사 자체는 main 이 한다)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 host.onCopied(() => {
   let toast = document.querySelector<HTMLElement>('.toast')

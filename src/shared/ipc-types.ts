@@ -3,7 +3,8 @@
 
 export const PROTOCOL_VERSION = 1
 
-export type KeyName = 'space' | 'esc' | 'enter' | 'up' | 'down' | 'left' | 'right'
+/** copy = 미리보기에 텍스트가 선택된 채 누른 Ctrl+C */
+export type KeyName = 'space' | 'esc' | 'enter' | 'up' | 'down' | 'left' | 'right' | 'copy'
 
 export type HelperErrorCode = 'ELEVATED' | 'NO_VIEW' | 'COM_FAIL' | 'BAD_MESSAGE' | 'INTERNAL'
 
@@ -44,6 +45,8 @@ export type HelperMessage =
 export type HostMessage =
   | { v: 1; type: 'config'; enabled: boolean }
   | { v: 1; type: 'state'; previewOpen: boolean }
+  /** 미리보기 창에 텍스트가 선택돼 있는지. true 인 동안만 헬퍼가 Ctrl+C 를 삼키고 key(copy) 를 보낸다 */
+  | { v: 1; type: 'textSelection'; selected: boolean }
   | { v: 1; type: 'getSelection'; id: number }
   | { v: 1; type: 'ping'; id: number }
   | { v: 1; type: 'shutdown' }
