@@ -168,8 +168,8 @@ internal sealed class HelperCore : IDisposable
     }
 
     /// <summary>
-    /// 포그라운드가 셸 밖의 창으로 넘어가면 알린다. 미리보기가 닫혀 있어도 보낸다 — Space 직후 선택 조회 응답 전
-    /// (호스트가 아직 state 를 보내기 전)에 전환해도 호스트가 여는 중인 요청을 취소할 수 있도록. 판단은 호스트가 한다.
+    /// 포그라운드가 셸 밖의 창으로 넘어가면 알린다. 미리보기가 닫혀 있어도 보낸다. 무엇을 할지는 호스트가 정한다
+    /// (현재 호스트는 기록만 하고 미리보기를 닫지 않는다).
     /// </summary>
     private void OnForeground(Windows.Win32.Foundation.HWND hwnd)
     {

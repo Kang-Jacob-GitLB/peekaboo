@@ -167,13 +167,7 @@ internal static class Program
 
         public void Error(int? id, string code, string message) => Print($"error {code}: {message}");
 
-        public void Foreground(uint pid)
-        {
-            Print($"foreground left shell (pid {pid})");
-            if (Core is null || !Core.PreviewOpen) return;
-            Core.SetPreviewOpen(false);
-            Print("[preview CLOSED]");
-        }
+        public void Foreground(uint pid) => Print($"foreground left shell (pid {pid}) — preview stays open");
 
         private static void Print(string msg) => Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff}  {msg}");
     }
