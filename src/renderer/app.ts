@@ -48,6 +48,7 @@ function setHeader(p: ShowPayload): void {
   elBadge.hidden = p.selectionCount <= 1
   elBadge.textContent = `선택 ${p.selectionCount}개`
   elSub.textContent = p.file.isDirectory ? '' : p.file.ext.toUpperCase()
+  reportSelection() // 헤더 글자를 선택해 둔 채 파일을 넘기면 그 선택도 사라진다
 }
 
 async function show(payload: ShowPayload): Promise<void> {
@@ -129,6 +130,7 @@ host.onShowError((e) => {
   elSize.textContent = ''
   elBadge.hidden = true
   elSub.textContent = ''
+  reportSelection()
   const view = document.createElement('div')
   view.className = 'content error-view'
   for (const [cls, text] of [
@@ -163,9 +165,10 @@ function liveDocs(): Document[] {
   return [...selectionDocs]
 }
 
+/** 복사할 글자가 있는 선택만 센다(이미지만·공백만 선택했으면 Ctrl+C 는 탐색기의 파일 복사로 둔다) */
 function hasSelection(doc: Document): boolean {
   const sel = doc.getSelection()
-  return !!sel && sel.rangeCount > 0 && !sel.isCollapsed
+  return !!sel && sel.rangeCount > 0 && !sel.isCollapsed && sel.toString().trim() !== ''
 }
 
 function reportSelection(doc?: Document): void {

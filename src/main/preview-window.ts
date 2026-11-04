@@ -70,6 +70,11 @@ export class PreviewWindow {
     this.registerIpc()
   }
 
+  /** 보이는 창에 텍스트가 선택돼 있는지(헬퍼 재시작 때 다시 알리는 데 쓴다) */
+  get hasTextSelection(): boolean {
+    return this.textSelected
+  }
+
   /** 보이는 중이거나 띄우는 중 */
   get isOpen(): boolean {
     return this.visible || this.openingSeq !== 0
@@ -317,6 +322,7 @@ export class PreviewWindow {
         this.win = null
         this.loaded = null
         this.visible = false
+        this.resetTextSelection()
       }
       if (this.spare?.win === win) this.spare = null
     })
@@ -426,7 +432,9 @@ export class PreviewWindow {
     })
     ipcMain.on(Channels.copyText, (e, id: unknown, text: unknown) => {
       const win = this.win
-      if (!fromPreview(e.sender) || !win || id !== this.pendingCopy || typeof text !== 'string') return
+      // 요청 없이 온 응답(id 0 포함)은 버린다: 사용자가 Ctrl+C 를 누르지 않았는데 클립보드를 덮어쓰지 않게
+      if (!fromPreview(e.sender) || !win || !this.visible || this.pendingCopy === 0 || id !== this.pendingCopy) return
+      if (typeof text !== 'string') return
       this.pendingCopy = 0
       copyText(win, text, 'ctrl+c')
     })

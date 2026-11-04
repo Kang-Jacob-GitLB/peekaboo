@@ -80,6 +80,7 @@ function start(): void {
         // 현재 설정/상태를 다시 알린다
         helper.send({ v: 1, type: 'config', enabled: getSettings().hotkeyEnabled })
         helper.send({ v: 1, type: 'state', previewOpen: preview.isOpen })
+        if (preview.hasTextSelection) helper.send({ v: 1, type: 'textSelection', selected: true })
         break
       case 'key':
         // 여는 중(getSelection 응답 대기)에 다시 Space 를 누르면 취소로 본다

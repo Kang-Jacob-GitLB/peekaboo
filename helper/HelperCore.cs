@@ -122,7 +122,13 @@ internal sealed class HelperCore : IDisposable
         if (key is null) return false;
 
         if (isKeyUp) return _swallowed.Remove(vk);
-        if (_swallowed.Contains(vk)) return true; // 삼킨 키의 자동 반복
+        if (_swallowed.Contains(vk))
+        {
+            // 삼킨 키의 자동 반복. LL 훅은 비동기 키 상태가 갱신되기 전에 불리므로 자동 반복이면 아직 '눌림'이다.
+            // '안 눌림'이면 key-up 을 놓친 것(보안 데스크톱 전환 등)이라 새 입력으로 처리한다 — 그대로 두면 다음 'c' 가 삼켜진다.
+            if ((PInvoke.GetAsyncKeyState((int)vk) & 0x8000) != 0) return true;
+            _swallowed.Remove(vk);
+        }
 
         if (!_enabled || ModifierHeld(key.Value)) return false;
 
