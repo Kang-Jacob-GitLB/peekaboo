@@ -12,7 +12,8 @@ internal interface IHelperSink
     void Key(KeyName key, bool consumed);
     void Selection(int? id, SelectionResult selection);
     void Error(int? id, string code, string message);
-    void Foreground(uint pid);
+    /// <param name="shell">셸(탐색기·바탕화면·작업 표시줄 등) 창인지</param>
+    void Foreground(uint pid, bool shell);
 }
 
 /// <summary>
@@ -35,6 +36,7 @@ internal sealed class HelperCore : IDisposable
     private volatile bool _enabled = true;
     private volatile bool _previewOpen;
     private volatile bool _textSelected; // 미리보기 창에 텍스트가 선택돼 있음 → Ctrl+C 를 가로챈다
+    private volatile uint _hostPid;      // 미리보기 창을 띄우는 호스트(Electron) 프로세스. 0 = 모름(콘솔 모드)
     private volatile FileViewTarget? _lastTarget;
     private SelectionResult? _lastSent; // STA 전용
     private bool _refreshPending;       // STA 전용
@@ -63,6 +65,8 @@ internal sealed class HelperCore : IDisposable
     public void SetEnabled(bool enabled) => _enabled = enabled;
 
     public void SetTextSelected(bool selected) => _textSelected = selected;
+
+    public void SetHostPid(uint pid) => _hostPid = pid;
 
     public void SetPreviewOpen(bool open)
     {
@@ -136,6 +140,15 @@ internal sealed class HelperCore : IDisposable
         // Ctrl+C 는 미리보기에 텍스트가 선택돼 있을 때만 가로챈다. 아니면 탐색기의 파일 복사로 통과시킨다.
         if (key.Value == KeyName.Copy && !(open && _textSelected)) return false;
         var target = FocusInspector.GetFileViewTarget();
+        if (target is null && open && _hostPid != 0 && FocusInspector.IsProcessForeground(_hostPid))
+        {
+            // 다른 앱에 있다가 미리보기 창을 클릭해 포커스를 준 상태. 탐색기 대신 여기서 Space/Esc(닫기)·Ctrl+C 를 받는다.
+            // (네이티브 미리보기 핸들러의 자식 창에 포커스가 있어도 최상위 창은 호스트 것이다)
+            if (key.Value is not (KeyName.Space or KeyName.Esc or KeyName.Copy)) return false;
+            _sink.Key(key.Value, true);
+            _swallowed.Add(vk);
+            return true;
+        }
         if (target is null)
         {
             // 미리보기가 열린 채 포커스가 탭 표시줄·검색창 등으로 옮겨 갔을 때도 Esc 로 닫을 수 있게 한다.
@@ -168,14 +181,15 @@ internal sealed class HelperCore : IDisposable
     }
 
     /// <summary>
-    /// 포그라운드가 셸 밖의 창으로 넘어가면 알린다. 미리보기가 닫혀 있어도 보낸다. 무엇을 할지는 호스트가 정한다
-    /// (현재 호스트는 기록만 하고 미리보기를 닫지 않는다).
+    /// 포그라운드 창이 바뀌면 셸 창인지와 함께 알린다. 미리보기가 닫혀 있어도 보낸다. 무엇을 할지는 호스트가 정한다
+    /// (현재 호스트는 미리보기를 닫지 않고, 셸 밖의 앱이 포그라운드인 동안만 미리보기 창이 클릭으로 포커스를 받게 한다).
     /// </summary>
     private void OnForeground(Windows.Win32.Foundation.HWND hwnd)
     {
         FocusInspector.PrimeForWindow(hwnd);
-        if (hwnd.IsNull || FocusInspector.IsShellWindow(hwnd, out var pid)) return;
-        _sink.Foreground(pid);
+        if (hwnd.IsNull) return;
+        bool shell = FocusInspector.IsShellWindow(hwnd, out var pid);
+        _sink.Foreground(pid, shell);
     }
 
     private static KeyName? MapKey(uint vk) => (VIRTUAL_KEY)vk switch

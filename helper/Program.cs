@@ -87,7 +87,7 @@ internal static class Program
 
             switch (cmd)
             {
-                case HostCommand.Config c: core.SetEnabled(c.Enabled); break;
+                case HostCommand.Config c: core.SetEnabled(c.Enabled); core.SetHostPid(c.HostPid); break;
                 case HostCommand.State s: core.SetPreviewOpen(s.PreviewOpen); break;
                 case HostCommand.TextSelection t: core.SetTextSelected(t.Selected); break;
                 case HostCommand.GetSelection g: core.RequestSelection(g.Id); break;
@@ -129,7 +129,7 @@ internal static class Program
         public void Key(KeyName key, bool consumed) => Outgoing.Key(channel, key, consumed);
         public void Selection(int? id, SelectionResult selection) => Outgoing.Selection(channel, id, selection);
         public void Error(int? id, string code, string message) => Outgoing.Error(channel, id, code, message);
-        public void Foreground(uint pid) => Outgoing.Foreground(channel, pid);
+        public void Foreground(uint pid, bool shell) => Outgoing.Foreground(channel, pid, shell);
     }
 
     private sealed class ConsoleSink : IHelperSink
@@ -167,7 +167,10 @@ internal static class Program
 
         public void Error(int? id, string code, string message) => Print($"error {code}: {message}");
 
-        public void Foreground(uint pid) => Print($"foreground left shell (pid {pid}) — preview stays open");
+        public void Foreground(uint pid, bool shell)
+        {
+            if (!shell) Print($"foreground left shell (pid {pid}) — preview stays open");
+        }
 
         private static void Print(string msg) => Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff}  {msg}");
     }

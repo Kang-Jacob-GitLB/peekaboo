@@ -38,12 +38,13 @@ export type HelperMessage =
   | { v: 1; type: 'pong'; id: number }
   | { v: 1; type: 'error'; id?: number; code: HelperErrorCode; message: string }
   | { v: 1; type: 'nativePreview'; id: number; status: NativePreviewStatus; message?: string }
-  /** 포그라운드가 셸(탐색기·바탕화면·작업 표시줄·시작 메뉴 등) 밖의 창으로 넘어감. pid = 그 창의 프로세스 */
-  | { v: 1; type: 'foreground'; pid: number }
+  /** 포그라운드 창이 바뀜. shell = 셸(탐색기·바탕화면·작업 표시줄·시작 메뉴 등) 창인지, pid = 그 창의 프로세스 */
+  | { v: 1; type: 'foreground'; pid: number; shell: boolean }
 
 // ---- Electron -> Helper ----
 export type HostMessage =
-  | { v: 1; type: 'config'; enabled: boolean }
+  /** hostPid = 미리보기 창을 띄우는 이 프로세스. 그 창이 포그라운드일 때 헬퍼가 Space/Esc/Ctrl+C 를 받아 준다 */
+  | { v: 1; type: 'config'; enabled: boolean; hostPid?: number }
   | { v: 1; type: 'state'; previewOpen: boolean }
   /** 미리보기 창에 텍스트가 선택돼 있는지. true 인 동안만 헬퍼가 Ctrl+C 를 삼키고 key(copy) 를 보낸다 */
   | { v: 1; type: 'textSelection'; selected: boolean }

@@ -48,6 +48,15 @@ internal static class FocusInspector
         return new FileViewTarget(source, fg, view, pid);
     }
 
+    /// <summary>포그라운드 창이 해당 프로세스의 것인지.</summary>
+    public static unsafe bool IsProcessForeground(uint pid)
+    {
+        var fg = PInvoke.GetForegroundWindow();
+        if (fg.IsNull) return false;
+        uint p;
+        return PInvoke.GetWindowThreadProcessId(fg, &p) != 0 && p == pid;
+    }
+
     /// <summary>포그라운드가 탐색기 창 또는 바탕화면인지(포커스 위치는 따지지 않음).</summary>
     public static bool IsShellForeground()
     {

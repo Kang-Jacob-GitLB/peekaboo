@@ -11,6 +11,7 @@ app.innerHTML = `
 <header>
   <span class="h-name"></span><span class="h-size"></span><span class="h-badge" hidden></span>
   <span class="h-sub"></span>
+  <button class="h-close" type="button" title="닫기 (Space · Esc)" aria-label="닫기">✕</button>
 </header>
 <main></main>`
 const $ = (sel: string) => app.querySelector<HTMLElement>(sel)!
@@ -19,6 +20,8 @@ const elSize = $('.h-size')
 const elBadge = $('.h-badge')
 const elSub = $('.h-sub')
 const main = $('main')
+// 다른 앱으로 전환한 뒤에도 닫을 수 있게(비포커스 창도 클릭은 받는다)
+$('.h-close').addEventListener('click', () => host.close())
 
 let current = { seq: -1, abort: null as AbortController | null, plugin: null as PreviewPlugin | null }
 
