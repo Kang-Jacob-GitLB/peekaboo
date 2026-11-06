@@ -63,6 +63,9 @@ header {
   padding: 0 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* 헤더를 끌어 창을 옮긴다 */
+  -webkit-app-region: drag;
+  user-select: none;
 }
 .h-name { font-weight: 600; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .h-size, .h-sub { color: var(--fg-dim); white-space: nowrap; flex: none; }
@@ -79,6 +82,7 @@ header {
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 .h-close:hover { background: var(--border); color: inherit; }
 .h-badge { flex: none; padding: 1px 8px; border-radius: 10px; background: var(--badge-bg); color: var(--accent); font-size: 12px; white-space: nowrap; }

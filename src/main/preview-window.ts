@@ -63,6 +63,8 @@ export class PreviewWindow {
   private copySeq = 0
   /** 클릭하면 포커스를 받는 창인지. 셸(탐색기 등) 밖의 앱이 포그라운드인 동안만 true */
   private activatable = false
+  /** 사용자가 헤더를 끌어 창을 옮겼는지. 그 뒤로는 파일을 넘겨 크기가 바뀌어도 화면 중앙으로 되돌리지 않는다(닫으면 초기화) */
+  private userMoved = false
 
   constructor(
     private readonly keepWarmSeconds: () => number,
@@ -110,7 +112,10 @@ export class PreviewWindow {
     await loaded
     if (seq !== this.seq || win.isDestroyed()) return // 그 사이 다른 파일이 요청됐거나 hide() 로 취소됨
 
-    if (!this.visible) this.firstFit = undefined
+    if (!this.visible) {
+      this.firstFit = undefined
+      this.userMoved = false
+    }
     if (payload) win.webContents.send(Channels.show, payload)
     else win.webContents.send(Channels.showError, { seq, path: req.path, message: error })
 
@@ -333,6 +338,10 @@ export class PreviewWindow {
     const slowTimer = setTimeout(() => {
       if (!win.isDestroyed()) log.warn(`renderer still loading after ${elapsed()} (${reason})`)
     }, SLOW_LOAD_MS)
+    // will-move 는 사용자가 끌어서 옮길 때만 온다(setBounds 로는 오지 않는다)
+    win.on('will-move', () => {
+      if (this.win === win && this.visible) this.userMoved = true
+    })
     win.on('closed', () => {
       clearTimeout(slowTimer)
       if (this.win === win) {
@@ -378,24 +387,28 @@ export class PreviewWindow {
     if (!size.grow) scale = Math.min(1, scale)
     const width = Math.max(MIN_CONTENT_W, Math.round(size.width * scale)) + CHROME_W
     const height = Math.max(MIN_CONTENT_H, Math.round(size.height * scale)) + CHROME_H
-    win.setBounds({
-      x: Math.round(area.x + (area.width - width) / 2),
-      y: Math.round(area.y + (area.height - height) / 2),
-      width,
-      height
-    })
+    this.place(win, area, width, height)
   }
 
   /** 작업 영역(기본: 창이 있는 모니터) 중앙, 작업 영역의 70% 크기(최대 1280×900) */
   private position(win: BrowserWindow, area = windowWorkArea(win)): void {
     const width = Math.min(Math.round(area.width * 0.7), 1280)
     const height = Math.min(Math.round(area.height * 0.7), 900)
-    win.setBounds({
-      x: Math.round(area.x + (area.width - width) / 2),
-      y: Math.round(area.y + (area.height - height) / 2),
-      width,
-      height
-    })
+    this.place(win, area, width, height)
+  }
+
+  /**
+   * 작업 영역 중앙에 놓는다. 사용자가 창을 옮겼으면 지금 창의 중심을 유지하되 작업 영역 밖으로 나가지 않게 한다.
+   */
+  private place(win: BrowserWindow, area: Electron.Rectangle, width: number, height: number): void {
+    let x = Math.round(area.x + (area.width - width) / 2)
+    let y = Math.round(area.y + (area.height - height) / 2)
+    if (this.userMoved) {
+      const b = win.getBounds()
+      x = clamp(Math.round(b.x + (b.width - width) / 2), area.x, area.x + area.width - width)
+      y = clamp(Math.round(b.y + (b.height - height) / 2), area.y, area.y + area.height - height)
+    }
+    win.setBounds({ x, y, width, height })
   }
 
   private registerIpc(): void {
@@ -491,6 +504,11 @@ function cursorWorkArea(): Electron.Rectangle {
 /** 이미 떠 있는 창의 크기를 바꿀 때: 창이 있는 모니터(파일을 넘길 때 다른 모니터로 옮겨 가지 않게) */
 function windowWorkArea(win: BrowserWindow): Electron.Rectangle {
   return screen.getDisplayMatching(win.getBounds()).workArea
+}
+
+/** min 이 max 보다 크면(창이 작업 영역보다 크면) min */
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(v, max))
 }
 
 function isContentSize(s: unknown): s is ContentSize {
