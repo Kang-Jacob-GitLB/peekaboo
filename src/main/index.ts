@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, Menu } from 'electron'
 import type { HelperMessage } from '../shared/ipc-types'
 import { HelperSupervisor } from './helper-supervisor'
 import { NativePreviewBridge } from './native-preview'
@@ -28,6 +28,10 @@ function start(): void {
   log.info(`Peekaboo ${app.getVersion()} starting (packaged=${app.isPackaged})`)
   // 알림이 "Peekaboo" 로 뜨도록 설치 프로그램이 만든 바로 가기와 같은 AppUserModelID 를 쓴다(electron-builder 의 appId)
   app.setAppUserModelId('io.github.kang-jacob-gitlb.peekaboo')
+
+  // 기본 애플리케이션 메뉴를 없앤다. 프레임 없는 창이라 메뉴는 안 보여도 단축키(Ctrl+R 새로 고침·Ctrl+W 닫기·
+  // Ctrl+Shift+I 개발자 도구·확대/축소)는 등록되는데, 다른 앱에 있다가 미리보기를 클릭해 포커스를 주면 이것들이 먹는다.
+  Menu.setApplicationMenu(null)
 
   const helper = new HelperSupervisor()
   const native = new NativePreviewBridge((msg) => helper.send(msg))
