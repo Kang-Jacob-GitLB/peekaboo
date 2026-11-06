@@ -33,6 +33,7 @@ export interface PreviewRequest {
 /**
  * 미리보기 창 하나를 관리한다.
  * - 프레임 없음, 항상 위, 포커스를 가져가지 않음(focusable:false + showInactive) → 탐색기 포커스 유지
+ *   단 다른 앱이 포그라운드인 동안에는 클릭해서 포커스를 줄 수 있게 한다(setActivatable) → 그 상태에서 Space/Esc 로 닫기
  * - 시작할 때 창을 숨긴 채 미리 로드해 둔다.
  * - 화면에 띄웠던 창은 닫은 뒤 새 창으로 바꾼다. 새 창도 숨긴 채 미리 로드하고, 로드가 끝난 뒤에야 교체한다
  *   (그 전에 다시 열면 숨겨 둔 기존 창을 바로 쓴다). 렌더러 기동이 수십 초씩 걸리는 PC 에서도 Space 가 기다리지 않게 하기 위함이다.
@@ -60,12 +61,16 @@ export class PreviewWindow {
   /** 응답을 기다리는 Ctrl+C 복사 요청 번호(0 = 없음) */
   private pendingCopy = 0
   private copySeq = 0
+  /** 클릭하면 포커스를 받는 창인지. 셸(탐색기 등) 밖의 앱이 포그라운드인 동안만 true */
+  private activatable = false
 
   constructor(
     private readonly keepWarmSeconds: () => number,
     private readonly native: NativePreviewBridge,
     /** 텍스트 선택 여부가 바뀌었을 때(헬퍼의 Ctrl+C 가로채기 판단용) */
-    private readonly onTextSelection: (selected: boolean) => void
+    private readonly onTextSelection: (selected: boolean) => void,
+    /** 렌더러의 닫기 버튼 */
+    private readonly onCloseRequest: () => void
   ) {
     this.registerIpc()
   }
@@ -179,6 +184,17 @@ export class PreviewWindow {
     this.onTextSelection(false)
   }
 
+  /**
+   * 클릭하면 포커스를 받을지 정한다. 탐색기가 포그라운드일 때는 false 여야 한다 — 미리보기를 클릭해도
+   * 탐색기 포커스가 남아야 방향키로 파일을 넘길 수 있다. 다른 앱이 포그라운드일 때는 true 로 두어,
+   * 미리보기를 클릭하면 포커스가 오고 그 상태의 Space/Esc 를 헬퍼가 받아 닫게 한다.
+   */
+  setActivatable(activatable: boolean): void {
+    if (this.activatable === activatable) return
+    this.activatable = activatable
+    for (const win of [this.win, this.spare?.win]) if (win && !win.isDestroyed()) applyActivatable(win, activatable)
+  }
+
   /** 시작할 때 창을 숨긴 채 미리 만들어 로드해 둔다. 이미 있으면 아무것도 하지 않는다. */
   prewarm(): void {
     if (!this.win || this.win.isDestroyed()) this.ensureWindow('prewarm')
@@ -289,6 +305,7 @@ export class PreviewWindow {
       }
     })
     win.setAlwaysOnTop(true, 'floating')
+    if (this.activatable) applyActivatable(win, true)
 
     // 렌더러가 다른 곳으로 이동하거나 새 창을 여는 것을 막는다
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -424,6 +441,9 @@ export class PreviewWindow {
       } else if (size === null) this.position(win)
       else this.fit(win, size)
     })
+    ipcMain.on(Channels.close, (e) => {
+      if (fromPreview(e.sender) && this.isOpen) this.onCloseRequest()
+    })
     ipcMain.on(Channels.textSelected, (e, selected: unknown) => {
       // 띄우기 전·닫은 뒤의 알림은 무시한다(닫을 때 resetTextSelection 이 false 로 맞춘다)
       if (!fromPreview(e.sender) || !this.visible || typeof selected !== 'boolean' || selected === this.textSelected) return
@@ -445,6 +465,14 @@ export class PreviewWindow {
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
     })
   }
+}
+
+/**
+ * focusable 을 바꾼다. Windows 의 setFocusable 은 작업 표시줄 표시(skipTaskbar)도 함께 바꾸므로 다시 숨긴다.
+ */
+function applyActivatable(win: BrowserWindow, activatable: boolean): void {
+  win.setFocusable(activatable)
+  win.setSkipTaskbar(true)
 }
 
 /** 선택한 텍스트를 클립보드에 쓰고 렌더러에 '복사했습니다' 알림을 띄우게 한다. 공백뿐이면 아무것도 하지 않는다. */

@@ -91,10 +91,11 @@ internal static class Outgoing
         if (message is not null) w.WriteString("message", message);
     });
 
-    public static void Foreground(JsonLineChannel ch, uint pid) => ch.Send(w =>
+    public static void Foreground(JsonLineChannel ch, uint pid, bool shell) => ch.Send(w =>
     {
         w.WriteString("type", "foreground");
         w.WriteNumber("pid", pid);
+        w.WriteBoolean("shell", shell);
     });
 
     public static void Error(JsonLineChannel ch, int? id, string code, string message) => ch.Send(w =>
@@ -109,7 +110,8 @@ internal static class Outgoing
 /// <summary>Electron -> Helper 메시지</summary>
 internal abstract record HostCommand
 {
-    public sealed record Config(bool Enabled) : HostCommand;
+    /// <param name="HostPid">미리보기 창을 띄우는 호스트 프로세스(없으면 0)</param>
+    public sealed record Config(bool Enabled, uint HostPid) : HostCommand;
     public sealed record State(bool PreviewOpen) : HostCommand;
     public sealed record TextSelection(bool Selected) : HostCommand;
     public sealed record GetSelection(int Id) : HostCommand;
@@ -131,7 +133,9 @@ internal abstract record HostCommand
             var type = root.GetProperty("type").GetString() ?? "";
             return type switch
             {
-                "config" => new Config(root.GetProperty("enabled").GetBoolean()),
+                "config" => new Config(
+                    root.GetProperty("enabled").GetBoolean(),
+                    root.TryGetProperty("hostPid", out var hp) && hp.TryGetUInt32(out var pid) ? pid : 0),
                 "state" => new State(root.GetProperty("previewOpen").GetBoolean()),
                 "textSelection" => new TextSelection(root.GetProperty("selected").GetBoolean()),
                 "getSelection" => new GetSelection(root.GetProperty("id").GetInt32()),

@@ -4,6 +4,7 @@ export const Channels = {
   show: 'preview:show',
   showError: 'preview:show-error',
   hide: 'preview:hide',
+  close: 'preview:close',
   copied: 'preview:copied',
   textSelected: 'preview:text-selected',
   copyRequest: 'preview:copy-request',

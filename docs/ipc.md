@@ -12,18 +12,18 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 | type | 필드 | 설명 |
 |---|---|---|
 | `ready` | `version`, `pid` | 키보드 훅 설치 완료 |
-| `key` | `key`: `space`·`esc`·`enter`·`up`·`down`·`left`·`right`·`copy`, `consumed` | 탐색기/바탕화면 파일 뷰가 포커스일 때 관련 키 입력. `consumed=true` 면 헬퍼가 키를 삼켰음 |
+| `key` | `key`: `space`·`esc`·`enter`·`up`·`down`·`left`·`right`·`copy`, `consumed` | 탐색기/바탕화면 파일 뷰(또는 `hostPid` 의 미리보기 창)가 포커스일 때 관련 키 입력. `consumed=true` 면 헬퍼가 키를 삼켰음 |
 | `selection` | `id?`, `paths[]`, `focused`, `source`: `explorer`·`desktop`, `hwnd` | `getSelection` 응답(`id` 있음) 또는 선택 변경 알림(`id` 없음) |
 | `pong` | `id` | `ping` 응답 |
 | `error` | `id?`, `code`, `message` | 복구 가능한 오류. `ELEVATED`(관리자 권한 창), `NO_VIEW`, `COM_FAIL`, `BAD_MESSAGE`, `INTERNAL` |
 | `nativePreview` | `id`, `status`: `shown`·`unavailable`·`failed`, `message?` | `nativePreview.open` 응답. `unavailable` = 등록된 미리보기 핸들러 없음 |
-| `foreground` | `pid` | 포그라운드가 셸(탐색기 창·바탕화면·작업 표시줄 등 explorer.exe) 밖의 창으로 넘어감. Electron 은 기록만 남기고 미리보기는 닫지 않는다(다른 앱으로 전환해도 떠 있게 둔다). 시작 메뉴·검색·알림 센터·화면 캡처처럼 explorer.exe 밖에서 도는 셸 화면(`Windows.UI.Core.CoreWindow`)도 셸로 본다 |
+| `foreground` | `pid`, `shell` | 포그라운드 창이 바뀜. `shell` = 셸(탐색기 창·바탕화면·작업 표시줄 등 explorer.exe) 창인지. Electron 은 미리보기를 닫지 않고(다른 앱으로 전환해도 떠 있게 둔다), `shell=false` 인 동안만 미리보기 창이 클릭으로 포커스를 받게 한다(탐색기가 포그라운드일 때는 탐색기 포커스 유지). 헬퍼 자신의 창은 알리지 않는다. 시작 메뉴·검색·알림 센터·화면 캡처처럼 explorer.exe 밖에서 도는 셸 화면(`Windows.UI.Core.CoreWindow`)도 셸로 본다 |
 
 ## Electron → Helper
 
 | type | 필드 | 설명 |
 |---|---|---|
-| `config` | `enabled` | 단축키 on/off. `false` 면 어떤 키도 가로채지 않는다 |
+| `config` | `enabled`, `hostPid?` | 단축키 on/off. `false` 면 어떤 키도 가로채지 않는다. `hostPid` = 미리보기 창을 띄우는 Electron 프로세스 — 미리보기가 열려 있고 그 프로세스의 창이 포그라운드면(다른 앱에 있다가 미리보기를 클릭한 경우) Space·Esc·Ctrl+C(텍스트 선택 시)를 삼키고 `key` 로 알린다 |
 | `state` | `previewOpen` | 미리보기 열림 여부. 열려 있을 때만 Esc 를 삼키고 선택 변경 감시를 켠다 |
 | `textSelection` | `selected` | 미리보기 창에 텍스트가 선택돼 있는지. `true` 인 동안만 Ctrl+C 를 삼킨다. `state{previewOpen:false}` 를 받으면 헬퍼가 `false` 로 되돌린다 |
 | `getSelection` | `id` | 포그라운드 탐색기/바탕화면의 현재 선택 조회 |

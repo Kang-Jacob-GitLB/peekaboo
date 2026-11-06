@@ -66,6 +66,21 @@ header {
 }
 .h-name { font-weight: 600; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .h-size, .h-sub { color: var(--fg-dim); white-space: nowrap; flex: none; }
+.h-close {
+  flex: none;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.h-close:hover { background: var(--border); color: inherit; }
 .h-badge { flex: none; padding: 1px 8px; border-radius: 10px; background: var(--badge-bg); color: var(--accent); font-size: 12px; white-space: nowrap; }
 .h-sub { margin-left: auto; }
 main { flex: 1; min-height: 0; position: relative; }

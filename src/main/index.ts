@@ -34,14 +34,15 @@ function start(): void {
   const preview = new PreviewWindow(
     () => getSettings().keepWarmSeconds,
     native,
-    (selected) => helper.send({ v: 1, type: 'textSelection', selected })
+    (selected) => helper.send({ v: 1, type: 'textSelection', selected }),
+    () => closePreview()
   )
   handlePeekProtocol((path) => preview.isAllowedPath(path))
   blockRemoteFileRequests((path) => preview.isAllowedPath(path))
 
   const updater = new Updater(() => tray.refreshUpdate())
   const tray = new AppTray((enabled) => {
-    helper.send({ v: 1, type: 'config', enabled })
+    helper.send({ v: 1, type: 'config', enabled, hostPid: process.pid })
     if (!enabled) closePreview()
   }, updater)
   helper.on('status', (s) => tray.setStatus(s))
@@ -78,7 +79,7 @@ function start(): void {
         // 헬퍼가 (재)시작됨 → 이전 헬퍼가 띄운 미리보기 핸들러는 사라졌으므로 대기 중인 요청을 끝낸다
         native.closeAll('helper restarted')
         // 현재 설정/상태를 다시 알린다
-        helper.send({ v: 1, type: 'config', enabled: getSettings().hotkeyEnabled })
+        helper.send({ v: 1, type: 'config', enabled: getSettings().hotkeyEnabled, hostPid: process.pid })
         helper.send({ v: 1, type: 'state', previewOpen: preview.isOpen })
         if (preview.hasTextSelection) helper.send({ v: 1, type: 'textSelection', selected: true })
         break
@@ -103,8 +104,11 @@ function start(): void {
         native.onResult(msg.id, msg.status, msg.message)
         break
       case 'foreground':
-        // 다른 앱으로 전환해도 닫지 않는다(Quick Look 처럼 떠 있게 둔다). 닫기는 탐색기로 돌아와 Space/Esc 로 한다.
-        if (msg.pid !== process.pid && preview.isOpen) log.info(`foreground moved to pid ${msg.pid} (preview kept open)`)
+        // 다른 앱으로 전환해도 닫지 않는다(Quick Look 처럼 떠 있게 둔다). 이 앱 자신의 창(미리보기·트레이 메뉴)은 무시한다.
+        // 다른 앱이 포그라운드인 동안은 미리보기를 클릭하면 포커스가 가게 해, 그 상태의 Space/Esc 로도 닫을 수 있게 한다.
+        if (msg.pid === process.pid) break
+        preview.setActivatable(!msg.shell)
+        if (!msg.shell && preview.isOpen) log.info(`foreground moved to pid ${msg.pid} (preview kept open)`)
         break
       case 'error':
         if (msg.id !== undefined) pendingOpen.delete(msg.id)
