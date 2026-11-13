@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Peekaboo",
+  "version": "../package.json",
+  "identifier": "io.github.kang-jacob-gitlb.peekaboo",
+  "build": {
+    "frontendDist": "../out/renderer-tauri"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: http://peek.localhost; media-src http://peek.localhost; connect-src 'self' ipc: http://ipc.localhost http://peek.localhost; worker-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.png", "icons/icon.ico"]
+  }
+}

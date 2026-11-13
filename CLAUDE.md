@@ -13,6 +13,8 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
   trimmed single-file `peekaboo-helper.exe` 로 publish 된다. 새 Win32 API 는 `NativeMethods.txt` 에 추가한다.
 - `src/main/` — Electron main. 헬퍼 감시(`helper-supervisor.ts`), 미리보기 창(`preview-window.ts`),
   `peek://` 프로토콜과 요청 차단(`protocol.ts`), 트레이, 자동 업데이트(`updater.ts`).
+- `src-tauri/` — Tauri 2 호스트(Electron 대체 작업 중, `docs/tauri-migration.md`). `peek.rs`(프로토콜), `preview.rs`(창), `commands.rs`(렌더러 커맨드, ACL 은 `build.rs`·`capabilities/`).
+  렌더러 어댑터는 `src/renderer/host/tauri.ts`, 빌드는 `vite.tauri.config.ts`(`npm run build:web:tauri`).
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 을 구현한 모듈 하나 + `registry.ts` 한 줄로 새 포맷을 추가한다.
   `registry.ts` 의 순서가 곧 우선순위다.
 - `src/renderer/host/` — 렌더러 ↔ 호스트 어댑터(`createHost()`). 플러그인은 `window.peekaboo` 대신 `ctx.host` 를 쓴다.
@@ -56,5 +58,7 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
 - 미리보기 화면 확인은 키 입력 없이 한다: `npm run build` 후
   `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> electron .` 로 **미리보기 창만** 캡처한다. 전체 화면 스크린샷은 찍지 않는다.
   설치된 Peekaboo 가 실행 중이면 `--user-data-dir=<임시 폴더>` 를 붙여 단일 인스턴스 잠금을 피한다.
+- Tauri 쪽 캡처: `npm run build:web:tauri` → `cargo build`(`src-tauri/`) 후
+  `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> src-tauri/target/debug/peekaboo.exe`(디버그 빌드 전용, 캡처 뒤 스스로 종료). Rust 검사는 `cargo fmt --check`·`cargo clippy -- -D warnings`·`cargo test`.
 - 키를 보내는 GUI 테스트는 사용자가 PC 를 쓰지 않을 때만 한다. 전경 창이 예상한 탐색기 창이 아니면(잠금 화면 포함) 즉시 중단한다.
 - 로그: `%APPDATA%\Peekaboo\logs\peekaboo.log`(표시 지연, 헬퍼 상태, 업데이트 진행).

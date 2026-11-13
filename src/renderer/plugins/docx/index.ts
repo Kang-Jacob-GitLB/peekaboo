@@ -18,7 +18,11 @@ export function create(): PreviewPlugin {
       if (signal.aborted) return
 
       // data:image/ 만 허용 — DOMPurify 기본값도 img 의 data: URI 는 허용한다.
-      const frag = DOMPurify.sanitize(value, { RETURN_DOM_FRAGMENT: true })
+      const frag = DOMPurify.sanitize(value, {
+        RETURN_DOM_FRAGMENT: true,
+        // 신뢰하지 않는 문서의 data-* (예: data-tauri-drag-region)를 막는다
+        ALLOW_DATA_ATTR: false,
+      })
       frag.querySelectorAll('img').forEach((img) => {
         if (/^data:image\//i.test(img.getAttribute('src') ?? '')) return
         img.remove()

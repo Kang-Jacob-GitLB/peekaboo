@@ -4,6 +4,7 @@
 import type { PeekabooApi } from '../../shared/preview-api'
 import type { FileOps } from './file-ops/index'
 import { createElectronHost } from './electron'
+import { createTauriHost } from './tauri'
 
 /**
  * 렌더러에 주는 호스트 API.
@@ -12,6 +13,7 @@ import { createElectronHost } from './electron'
  */
 export interface Host extends PeekabooApi, FileOps {}
 
+/** 빌드 대상(vite 의 VITE_HOST 상수)에 맞는 어댑터. 고르지 않은 쪽은 번들에서 빠진다. */
 export function createHost(): Host {
-  return createElectronHost()
+  return import.meta.env.VITE_HOST === 'tauri' ? createTauriHost() : createElectronHost()
 }

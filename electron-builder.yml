@@ -5,6 +5,7 @@ directories:
   buildResources: resources
 files:
   - out/**
+  - "!out/renderer-tauri/**"
   - package.json
 extraResources:
   - from: helper/publish/peekaboo-helper.exe
