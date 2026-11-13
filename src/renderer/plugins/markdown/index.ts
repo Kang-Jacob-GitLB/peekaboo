@@ -47,6 +47,8 @@ export function create(): PreviewPlugin {
         RETURN_DOM_FRAGMENT: true,
         FORBID_TAGS: ['style', 'form', 'input', 'button', 'textarea', 'select'],
         FORBID_ATTR: ['style'],
+        // 신뢰하지 않는 문서의 data-* (예: data-tauri-drag-region)를 막는다
+        ALLOW_DATA_ATTR: false,
       })
 
       // 제한: main 은 현재 파일만 서빙하므로 상대 경로 이미지는 불러올 수 없다.

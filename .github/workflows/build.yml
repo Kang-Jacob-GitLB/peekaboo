@@ -3,6 +3,9 @@ name: build
 # PR 게이트: main 룰셋의 필수 상태 검사(아래 job 의 name)가 이 결과를 본다.
 # job name 을 바꾸면 룰셋의 required_status_checks context 도 함께 바꿀 것.
 on:
+  # main 푸시는 Rust 캐시를 main 범위에 저장해 PR 들이 읽게 하려는 것이다(PR 캐시는 다른 PR 이 못 읽는다)
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -10,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.event.pull_request.number }}
+  group: build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -62,6 +65,34 @@ jobs:
 
       - name: 빌드 (electron-vite)
         run: npm run build
+
+      # Tauri 앱(src-tauri). generate_context! 가 frontendDist(out/renderer-tauri)를 요구해 cargo 단계보다 먼저 빌드한다.
+      - name: 렌더러 빌드 (Tauri)
+        run: npm run build:web:tauri
+
+      - name: Rust 툴체인 설정
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          # 툴체인을 고정한다(새 stable 의 clippy 규칙 추가로 PR 과 무관하게 CI 가 깨지는 것을 막는다). 올릴 때는 이 값만 바꾼다.
+          toolchain: 1.100.0
+          components: rustfmt, clippy
+
+      - name: Rust 캐시
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      - name: Rust 서식 점검
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Rust 린트 (clippy)
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Rust 테스트
+        working-directory: src-tauri
+        run: cargo test --locked
 
       - name: 헬퍼 빌드 (트리밍 경고까지 확인)
         run: npm run helper:build
