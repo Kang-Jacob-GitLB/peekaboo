@@ -57,6 +57,19 @@ internal static class FocusInspector
         return PInvoke.GetWindowThreadProcessId(fg, &p) != 0 && p == pid;
     }
 
+    /// <summary>포그라운드 창이 주어진 프로세스 중 하나의 것인지(훅 스레드용: 할당 없음).</summary>
+    public static unsafe bool IsAnyProcessForeground(uint[] pids)
+    {
+        if (pids.Length == 0) return false;
+        var fg = PInvoke.GetForegroundWindow();
+        if (fg.IsNull) return false;
+        uint p;
+        if (PInvoke.GetWindowThreadProcessId(fg, &p) == 0) return false;
+        foreach (var pid in pids)
+            if (pid == p) return true;
+        return false;
+    }
+
     /// <summary>포그라운드가 탐색기 창 또는 바탕화면인지(포커스 위치는 따지지 않음).</summary>
     public static bool IsShellForeground()
     {

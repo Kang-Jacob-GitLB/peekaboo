@@ -106,10 +106,160 @@ pub fn list_dir(path: &str, max: u32) -> io::Result<DirListing> {
     Ok(DirListing { entries, truncated })
 }
 
+/// Zone.Identifier 내용에서 ZoneId 를 읽어 3(인터넷) 이상인지.
+/// 원본(Electron 의 isFromInternet: `/^\s*ZoneId\s*=\s*(\d+)/im`, 첫 일치)과 같거나 더 보수적이다.
+/// - 줄 앞의 공백·BOM(`U+FEFF`)은 무시하고 키 대소문자는 가리지 않는다.
+/// - 값은 앞쪽 숫자열만 본다(`3;`, `3 ` 도 3). 숫자가 아니거나 `ZoneId=` 줄이 없으면 false.
+/// - 숫자가 u32 를 넘치면 아주 큰 영역 번호이므로 인터넷으로 본다(원본의 `Number(..) >= 3` 도 참).
+/// - `ZoneId` 줄이 여러 개면 하나라도 3 이상이면 true(원본은 첫 줄만 본다. 더 보수적).
+pub fn zone_is_internet(text: &str) -> bool {
+    text.lines().any(|line| {
+        let line = line.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{FEFF}');
+        let Some((key, value)) = line.split_once('=') else {
+            return false;
+        };
+        if !key.trim().eq_ignore_ascii_case("ZoneId") {
+            return false;
+        }
+        let value = value.trim_start();
+        let end = value
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(value.len());
+        let digits = &value[..end];
+        if digits.is_empty() {
+            return false;
+        }
+        digits.parse::<u32>().map_or(true, |zone| zone >= 3)
+    })
+}
+
+/// 스트림 바이트를 문자열로. UTF-16LE BOM(FF FE)이면 UTF-16 으로, 아니면 UTF-8(깨진 바이트는 U+FFFD)로 읽는다.
+/// 한 줄이 깨져도 다른 줄의 `ZoneId` 판정에 영향이 없게 하려고 `read_to_string` 대신 바이트로 읽는다.
+fn decode_zone_stream(bytes: &[u8]) -> String {
+    match bytes {
+        [0xFF, 0xFE, rest @ ..] => {
+            // 홀수 바이트 꼬리는 버린다
+            let units: Vec<u16> = rest
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|p| u16::from_le_bytes(*p))
+                .collect();
+            String::from_utf16_lossy(&units)
+        }
+        _ => String::from_utf8_lossy(bytes).into_owned(),
+    }
+}
+
+/// NTFS 대체 데이터 스트림 `Zone.Identifier`(Mark of the Web)의 ZoneId 가 3(인터넷) 이상인지.
+/// 스트림이 없거나 읽을 수 없으면(로컬 파일, FAT32 등) false. Electron 의 isFromInternet 과 같다.
+/// 인터넷에서 받은 파일은 Office 등 외부 파서를 돌리지 않는다(탐색기도 같은 이유로 미리 보기 창을 막는다).
+pub fn is_from_internet(path: &str) -> bool {
+    fs::read(format!("{path}:Zone.Identifier"))
+        .is_ok_and(|bytes| zone_is_internet(&decode_zone_stream(&bytes)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn zone_id_3_이상만_인터넷() {
+        assert!(zone_is_internet(
+            "[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=x\r\n"
+        ));
+        assert!(zone_is_internet("[ZoneTransfer]\nzoneid = 4\n"));
+        assert!(!zone_is_internet("[ZoneTransfer]\r\nZoneId=2\r\n"));
+        assert!(!zone_is_internet("[ZoneTransfer]\r\nZoneId=abc\r\n"));
+        assert!(!zone_is_internet(
+            "[ZoneTransfer]\r\nReferrerUrl=ZoneId=3\r\n"
+        ));
+        assert!(!zone_is_internet(""));
+    }
+
+    #[test]
+    fn zone_id_는_원본_정규식보다_좁지_않게_읽는다() {
+        // 뒤에 ; 나 공백이 붙어도 앞쪽 숫자열만 본다
+        assert!(zone_is_internet("[ZoneTransfer]\r\nZoneId=3;\r\n"));
+        assert!(zone_is_internet("ZoneId=3 \n"));
+        assert!(zone_is_internet("  \t ZoneId \t=\t 4abc\n"));
+        assert!(!zone_is_internet("ZoneId=2;\n"));
+        assert!(!zone_is_internet("ZoneId=;3\n"));
+        // 첫 줄의 BOM
+        assert!(zone_is_internet("\u{FEFF}ZoneId=3\n"));
+        assert!(zone_is_internet("\u{FEFF}[ZoneTransfer]\nZONEID=3\n"));
+        // 넘치는 큰 수는 인터넷으로 본다
+        assert!(zone_is_internet("ZoneId=99999999999999999999999\n"));
+        assert!(zone_is_internet("ZoneId=4294967296\n"));
+        // 음수는 앞쪽 숫자열이 아니다
+        assert!(!zone_is_internet("ZoneId=-5\n"));
+        // 여러 줄이면 하나라도 3 이상이면 true(더 보수적)
+        assert!(zone_is_internet("ZoneId=2\nZoneId=3\n"));
+    }
+
+    fn utf16le_bom(s: &str) -> Vec<u8> {
+        let mut v = vec![0xFF, 0xFE];
+        v.extend(s.encode_utf16().flat_map(u16::to_le_bytes));
+        v
+    }
+
+    #[test]
+    fn 스트림_바이트_해석은_깨진_utf8_과_utf16_을_견딘다() {
+        // 깨진 UTF-8 바이트가 섞여도 다른 줄의 ZoneId 를 읽는다
+        let broken = b"\xC3\x28junk\r\nReferrerUrl=http://x/\xFF\xFE\x80\r\nZoneId=3\r\n";
+        assert!(zone_is_internet(&decode_zone_stream(broken)));
+        // UTF-16LE + BOM
+        let three = utf16le_bom("[ZoneTransfer]\r\nZoneId=3\r\n");
+        assert!(zone_is_internet(&decode_zone_stream(&three)));
+        let two = utf16le_bom("[ZoneTransfer]\r\nZoneId=2\r\n");
+        assert!(!zone_is_internet(&decode_zone_stream(&two)));
+        // 홀수 바이트 꼬리·BOM 만 있어도 패닉 없이 false
+        assert!(!zone_is_internet(&decode_zone_stream(&[0xFF, 0xFE, 0x5A])));
+        assert!(!zone_is_internet(&decode_zone_stream(&[0xFF, 0xFE])));
+        // UTF-8 BOM 으로 시작하는 첫 줄
+        assert!(zone_is_internet(&decode_zone_stream(
+            b"\xEF\xBB\xBFZoneId=3\n"
+        )));
+    }
+
+    /// 임시 폴더의 파일에 `:Zone.Identifier` 스트림을 써서 실제 NTFS 대체 데이터 스트림 경로로 판정한다.
+    /// 스트림을 쓸 수 없는 파일 시스템(NTFS 가 아닌 곳)이면 건너뛴다.
+    #[test]
+    fn 실제_대체_데이터_스트림으로_판정한다() {
+        let dir = scratch("ads");
+        let file = dir.join("받은 파일 #1.xlsx");
+        fs::write(&file, b"data").unwrap();
+        let path = file.to_str().unwrap();
+        let stream = format!("{path}:Zone.Identifier");
+        // 스트림이 없는 로컬 파일
+        assert!(!is_from_internet(path));
+        if fs::write(&stream, b"[ZoneTransfer]\r\nZoneId=3\r\n").is_err() {
+            eprintln!("NTFS 대체 데이터 스트림을 쓸 수 없어 건너뛴다");
+            let _ = fs::remove_dir_all(&dir);
+            return;
+        }
+        assert!(is_from_internet(path));
+        // 본문은 스트림과 따로다
+        assert_eq!(fs::read(&file).unwrap(), b"data");
+        let cases: [(Vec<u8>, bool); 4] = [
+            (b"[ZoneTransfer]\r\nZoneId=2\r\n".to_vec(), false),
+            (
+                b"\xEF\xBB\xBF[ZoneTransfer]\r\nZoneId=3;\r\n".to_vec(),
+                true,
+            ),
+            (
+                b"[ZoneTransfer]\r\nReferrerUrl=\xFF\r\nZoneId=4\r\n".to_vec(),
+                true,
+            ),
+            (utf16le_bom("[ZoneTransfer]\r\nZoneId=3\r\n"), true),
+        ];
+        for (bytes, expected) in cases {
+            fs::write(&stream, &bytes).unwrap();
+            assert_eq!(is_from_internet(path), expected, "{bytes:?}");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     fn scratch(name: &str) -> PathBuf {
         let dir =

@@ -9,6 +9,9 @@ const COMMANDS: &[&str] = &[
     "close",
     "text_selected",
     "list_dir",
+    "native_open",
+    "native_resize",
+    "native_close",
 ];
 
 fn main() {

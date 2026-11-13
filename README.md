@@ -171,6 +171,7 @@ v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부�
 | DOMPurify | Apache-2.0 / MPL-2.0 |
 | Tauri (`tauri`, `@tauri-apps/api`) | Apache-2.0 / MIT |
 | serde, serde_json | Apache-2.0 / MIT |
+| tokio | MIT |
 | webview2-com | MIT |
 | windows (windows-rs) | Apache-2.0 / MIT |
 | CsWin32 (빌드 도구) | MIT |

@@ -5,7 +5,7 @@
 - 모든 메시지는 `v`(프로토콜 버전, 현재 1)와 `type` 을 가진다. 요청/응답 짝은 `id`(정수)로 맞춘다.
 - 알 수 없는 `type` 은 무시한다(전방 호환). 파싱 실패 시 헬퍼는 `error{code:"BAD_MESSAGE"}` 를 보내고 계속 동작한다.
 
-TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.cs`
+TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.cs` / Rust(Tauri 호스트) 정의: `src-tauri/src/helper.rs`
 
 ## Helper → Electron
 
@@ -23,13 +23,13 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 
 | type | 필드 | 설명 |
 |---|---|---|
-| `config` | `enabled`, `hostPid?` | 단축키 on/off. `false` 면 어떤 키도 가로채지 않는다. `hostPid` = 미리보기 창을 띄우는 Electron 프로세스 — 미리보기가 열려 있고 그 프로세스의 창이 포그라운드면(다른 앱에 있다가 미리보기를 클릭한 경우) Space·Esc·Ctrl+C(텍스트 선택 시)를 삼키고 `key` 로 알린다 |
+| `config` | `enabled`, `hostPid?`, `hostPids?` | 단축키 on/off. `false` 면 어떤 키도 가로채지 않는다. `hostPid` = 미리보기 창을 띄우는 호스트 프로세스, `hostPids` = 호스트의 창을 소유할 수 있는 프로세스 전체(Tauri: 앱 + WebView2 브라우저 프로세스). 미리보기가 열려 있고 그중 하나의 창이 포그라운드면(다른 앱에 있다가 미리보기를 클릭한 경우) Space·Esc·Ctrl+C(텍스트 선택 시)를 삼키고 `key` 로 알린다. `hostPids` 가 없으면(Electron) `hostPid` 만 본다 |
 | `state` | `previewOpen` | 미리보기 열림 여부. 열려 있을 때만 Esc 를 삼키고 선택 변경 감시를 켠다 |
 | `textSelection` | `selected` | 미리보기 창에 텍스트가 선택돼 있는지. `true` 인 동안만 Ctrl+C 를 삼킨다. `state{previewOpen:false}` 를 받으면 헬퍼가 `false` 로 되돌린다 |
 | `getSelection` | `id` | 포그라운드 탐색기/바탕화면의 현재 선택 조회 |
 | `ping` | `id` | 생존 확인. Electron 은 2초 간격으로 보내고 연속 3회 무응답이면 헬퍼를 재시작한다 |
 | `shutdown` | — | 정상 종료 요청 |
-| `nativePreview.open` | `id`, `path`, `hwnd`, `rect`{`x`,`y`,`width`,`height`}, `dark` | Windows 미리보기 핸들러(IPreviewHandler)를 미리보기 창(`hwnd`) 안 `rect`(클라이언트 영역, 물리 픽셀)에 띄운다. 이전 것은 자동으로 닫힌다 |
+| `nativePreview.open` | `id`, `path`, `hwnd`, `rect`{`x`,`y`,`width`,`height`}, `dark`, `raise?` | Windows 미리보기 핸들러(IPreviewHandler)를 미리보기 창(`hwnd`) 안 `rect`(클라이언트 영역, 물리 픽셀)에 띄운다. 이전 것은 자동으로 닫힌다. `raise`(기본 false)가 true 면 컨테이너를 부모의 자식 중 맨 위로 올린다(아래 참고) |
 | `nativePreview.resize` | `id`, `rect` | 표시 영역 변경 |
 | `nativePreview.close` | `id` | 닫기(Unload) |
 
@@ -37,6 +37,7 @@ TypeScript 정의: `src/shared/ipc-types.ts` / C# 정의: `helper/Ipc/Messages.c
 
 - 핸들러는 `AssocQueryString(ASSOCSTR_SHELLEXTENSION, ".ext", "{8895b1c6-b41f-4c1c-a562-0d564250836f}")` 로 찾고 `CLSCTX_LOCAL_SERVER` 로만 만든다(핸들러는 항상 별도 프로세스에서 실행).
 - 초기화는 `IInitializeWithStream` → `IInitializeWithItem` → `IInitializeWithFile` 순으로 시도한다(공유 읽기, 파일을 잠그지 않음).
+- `raise: true` 일 때만 컨테이너를 만든 직후와 `resize` 직후 `SetWindowPos(HWND_TOP, SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE)` 로 부모의 자식 중 맨 위로 올린다. Tauri(WebView2)는 컨테이너가 `WRY_WEBVIEW` 자식 창 아래에 깔려 다시 그릴 때 덮이므로 호스트가 `raise: true` 를 보낸다. Electron 은 필드를 보내지 않아 기존 배치(컨테이너가 Chromium 자식 아래)가 유지된다 — 올리면 Z 순서가 실제로 바뀌기 때문이다.
 - 헬퍼가 `rect` 위치에 컨테이너 자식 창을 만들고, 핸들러에는 그 안의 `(0,0,w,h)` 를 넘긴다. 핸들러마다 RECT 위치 해석이 달라서다(실측: PowerPoint 는 위치를 무시).
 - 핸들러 호출은 전용 STA 스레드에서 하므로 `DoPreview` 가 오래 걸려도 선택 조회는 막히지 않는다. 대기열의 오래된 `open` 은 건너뛴다.
 - Electron 은 8초 안에 응답이 없으면 `failed` 로 보고 렌더러의 자체 미리보기로 넘어간다.

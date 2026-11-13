@@ -1,8 +1,8 @@
 // 미리보기 창. Electron 의 src/main/preview-window.ts 에 대응한다.
 // 상태(PreviewState)는 Tauri 와 무관한 순수 로직이라 cargo test 로 검증하고, 창 생성·배치·표시는 아래 함수들이 맡는다.
 //
-// M2 범위: 창 생성, show 페이로드 전송, 첫 fit 대기, 크기 맞춤, 표시·숨김.
-// M3 로 미룸: spare 창 교체, 헤더 드래그(userMoved), 클릭 시 포커스 허용(setActivatable), 복사, 네이티브 핸들러.
+// 범위: 창 생성, show 페이로드 전송, 첫 fit 대기, 크기 맞춤, 표시·숨김, 닫을 때 네이티브 미리보기 정리.
+// 아직 없음(M3 의 뒷 작업): spare 창 교체, 헤더 드래그(userMoved), 클릭 시 포커스 허용(setActivatable), 복사.
 
 use std::sync::{Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -41,6 +41,9 @@ const READY_WAIT: Duration = Duration::from_secs(20);
 struct Inner {
     /// 표시 순번. 늦게 도착한 이전 요청의 결과를 버리는 데 쓴다.
     seq: u64,
+    /// 닫기(`hide`)마다 올라가는 세대. 헬퍼 메시지로 열기를 요청한 시점의 세대를 들고 있다가, 그 사이 닫혔으면
+    /// `begin_in` 이 요청을 버린다(요청이 큐에서 기다리는 동안 닫혀도 뒤늦게 뜨지 않게). seq 와 같은 잠금 안에 있다.
+    epoch: u64,
     /// 지금 미리보기 중인 파일 경로(창 라벨은 LABEL 하나). seq 와 같은 Mutex 에 있어 함께 바뀐다.
     allowed: Option<String>,
     /// 렌더러가 리스너 등록을 마쳤는지
@@ -88,16 +91,32 @@ impl PreviewState {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// 새 표시 요청을 시작한다. 허용 경로를 `path` 로 바꾼다. (seq, 이미 떠 있었는지)
+    /// 세대를 따지지 않는 `begin_in`(테스트용 줄임). 허용 경로를 `path` 로 바꾼다. (seq, 이미 떠 있었는지)
+    #[cfg(test)]
     pub fn begin(&self, path: &str) -> (u64, bool) {
+        self.begin_in(path, None)
+            .expect("세대를 지정하지 않으면 항상 시작한다")
+    }
+
+    /// 지금의 닫기 세대
+    pub fn epoch(&self) -> u64 {
+        self.lock().epoch
+    }
+
+    /// 새 표시 요청을 시작한다. 허용 경로를 `path` 로 바꾼다. (seq, 이미 떠 있었는지)
+    /// `epoch` 가 주어졌고 그 뒤에 닫혔으면 시작하지 않고 None.
+    pub fn begin_in(&self, path: &str, epoch: Option<u64>) -> Option<(u64, bool)> {
         let mut s = self.lock();
+        if epoch.is_some_and(|e| e != s.epoch) {
+            return None;
+        }
         s.seq += 1;
         s.allowed = Some(path.to_owned());
         s.opening = true;
         s.started = Some((s.seq, Instant::now()));
         // 떠 있을 때의 fit 은 저장하지 않고 바로 적용하므로(route_fit) 이 값은 처음 띄우는 요청에서만 쓰인다
         s.first_fit = None;
-        (s.seq, s.visible)
+        Some((s.seq, s.visible))
     }
 
     pub fn is_current(&self, seq: u64) -> bool {
@@ -196,6 +215,7 @@ impl PreviewState {
     pub fn hide(&self) -> bool {
         let mut s = self.lock();
         s.seq += 1;
+        s.epoch += 1;
         let was_open = s.visible || s.opening;
         s.visible = false;
         s.opening = false;
@@ -342,15 +362,46 @@ pub fn apply_fit(app: &AppHandle, size: Option<ContentSize>) {
 // 표시·숨김
 // ---------------------------------------------------------------------------
 
+/// 헬퍼에 현재 열림 상태를 알린다(controller.rs 의 `sync_helper_state`). 컨트롤러가 없는 환경(단독 미리보기 이전)에서는 아무 일도 없다.
+fn sync_helper(app: &AppHandle) {
+    if let Some(controller) = app.try_state::<std::sync::Arc<crate::controller::Controller>>() {
+        controller.sync_helper_state();
+    }
+}
+
+/// 띄우기를 포기한다. 헬퍼에는 열기 시작 때 previewOpen=true 를 보냈으므로 상태를 다시 알린다.
+fn abort_open(app: &AppHandle, seq: u64) {
+    app.state::<PreviewState>().abort_open(seq);
+    sync_helper(app);
+}
+
+/// 창을 띄우지 못했다. `abort_open` 과 같이 헬퍼에 상태를 다시 알린다.
+fn fail_show(app: &AppHandle, seq: u64) {
+    app.state::<PreviewState>().fail_show(seq);
+    sync_helper(app);
+}
+
 /// 파일 하나를 미리보기로 띄운다. 파일 I/O 와 대기가 있으므로 UI 스레드가 아닌 곳에서 부른다.
 /// 마지막 단계(재확인 → 표시 → finish_show)는 `hide` 의 창 숨김과 같은 메인 스레드에서 직렬로 돈다(present).
 pub fn show(app: &AppHandle, path: &str) {
+    show_in(app, path, 1, None);
+}
+
+/// `show` 와 같다. `epoch` 가 주어졌고 그 뒤에 `hide` 됐으면 아무것도 하지 않는다. `selection_count` 는 탐색기에서 선택된 항목 수.
+pub fn show_in(app: &AppHandle, path: &str, selection_count: usize, epoch: Option<u64>) {
     let state = app.state::<PreviewState>();
-    let (seq, was_visible) = state.begin(path);
+    let Some((seq, was_visible)) = state.begin_in(path, epoch) else {
+        // 큐에서 기다리는 동안 닫혔다. 요청을 만들 때 헬퍼에 보낸 previewOpen=true 를 되돌린다
+        // (닫은 쪽이 알렸어도 그 뒤에 도착한 true 가 있을 수 있다).
+        sync_helper(app);
+        return;
+    };
+    // 열기를 시작했음을 헬퍼에 알린다(요청을 만들 때 보낸 true 가 그 사이의 닫기 알림에 덮였을 수 있다)
+    sync_helper(app);
 
     if app.get_webview_window(LABEL).is_none() {
         eprintln!("[peekaboo] 미리보기 창이 없다");
-        state.abort_open(seq);
+        abort_open(app, seq);
         return;
     }
     if !state.wait_ready(READY_WAIT) {
@@ -358,7 +409,7 @@ pub fn show(app: &AppHandle, path: &str) {
             "[peekaboo] 렌더러가 {}초 안에 준비되지 않았다",
             READY_WAIT.as_secs()
         );
-        state.abort_open(seq);
+        abort_open(app, seq);
         return;
     }
     // 렌더러 로드를 기다리는 동안 다른 파일이 요청됐거나 hide() 로 취소됐으면 여기서 끝낸다.
@@ -370,7 +421,7 @@ pub fn show(app: &AppHandle, path: &str) {
         Ok(file) => app.emit_to(
             LABEL,
             EVENT_SHOW,
-            serde_json::json!({ "seq": seq, "file": file, "selectionCount": 1 }),
+            serde_json::json!({ "seq": seq, "file": file, "selectionCount": selection_count }),
         ),
         Err(e) => app.emit_to(
             LABEL,
@@ -393,7 +444,7 @@ pub fn show(app: &AppHandle, path: &str) {
     let handle = app.clone();
     if let Err(e) = app.run_on_main_thread(move || present(&handle, seq, was_visible, applied)) {
         eprintln!("[peekaboo] 표시를 메인 스레드에 넘기지 못했다: {e}");
-        state.abort_open(seq);
+        abort_open(app, seq);
     }
 }
 
@@ -406,7 +457,7 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
     }
     let Some(window) = app.get_webview_window(LABEL) else {
         eprintln!("[peekaboo] 미리보기 창이 없다");
-        state.abort_open(seq);
+        abort_open(app, seq);
         return;
     };
     if !was_visible {
@@ -417,7 +468,7 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
         }
         if let Err(e) = window.show() {
             eprintln!("[peekaboo] 창 표시 실패: {e}");
-            state.fail_show(seq);
+            fail_show(app, seq);
             return;
         }
         eprintln!(
@@ -438,13 +489,17 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
     }
 }
 
-/// 미리보기를 닫는다(렌더러의 ✕, 이후 헬퍼의 Esc·Space). 열려 있지 않으면 아무것도 하지 않는다.
+/// 미리보기를 닫는다(렌더러의 ✕, 헬퍼의 Esc·Space). 열려 있었으면 true, 아니면 아무것도 하지 않고 false.
+/// 닫기 세대는 열려 있었는지와 무관하게 올라가 큐에서 기다리는 열기 요청을 막는다.
 /// 상태는 호출한 스레드에서 바로 바꾸고, 창 숨김은 메인 스레드에서 실행한다(show 의 present 와 직렬화).
-pub fn hide(app: &AppHandle) {
+pub fn hide(app: &AppHandle) -> bool {
     let was_open = app.state::<PreviewState>().hide();
     if !was_open {
-        return;
+        return false;
     }
+    // 열려 있던 네이티브 미리보기 창은 렌더러가 닫기 전에 헬퍼에서 내린다
+    app.state::<crate::native::NativeBridge>()
+        .close_all("hidden");
     if let Err(e) = app.emit_to(LABEL, EVENT_HIDE, ()) {
         eprintln!("[peekaboo] hide 이벤트 전송 실패: {e}");
     }
@@ -459,6 +514,7 @@ pub fn hide(app: &AppHandle) {
     if let Err(e) = queued {
         eprintln!("[peekaboo] 창 숨김을 메인 스레드에 넘기지 못했다: {e}");
     }
+    true
 }
 
 #[cfg(test)]
@@ -635,6 +691,25 @@ mod tests {
         assert!(st.is_open());
         st.fail_show(c);
         assert!(!st.is_open());
+    }
+
+    #[test]
+    fn 요청_뒤_닫히면_그_세대의_열기는_시작하지_않는다() {
+        let st = PreviewState::default();
+        let e = st.epoch();
+        // 큐에서 기다리는 동안 닫기
+        st.hide();
+        assert_eq!(st.begin_in("p", Some(e)), None);
+        assert!(!st.is_open());
+        assert!(!st.is_allowed(LABEL, "p"));
+        // 새 세대의 요청과 세대 미지정 요청은 시작한다
+        assert!(st.begin_in("p", Some(st.epoch())).is_some());
+        assert!(st.begin_in("q", None).is_some());
+        // 열기끼리는 세대가 올라가지 않아 앞 요청이 뒤 요청을 막지 않는다
+        let e = st.epoch();
+        assert!(st.begin_in("a", Some(e)).is_some());
+        assert!(st.begin_in("b", Some(e)).is_some());
+        assert!(st.is_allowed(LABEL, "b"));
     }
 
     #[test]

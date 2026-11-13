@@ -12,11 +12,16 @@
 // tauri-runtime-wry 의 send_user_message 가 큐를 거치지 않고 그 자리에서 처리하므로 재진입 교착이 없다.
 // 파일 I/O 가 있는 list_dir 만 async 로 두고 blocking 풀에서 읽는다.
 
-use tauri::{AppHandle, State, Webview};
+use std::sync::Arc;
+
+use tauri::{AppHandle, Manager, State, Webview};
 
 use crate::capture;
+use crate::controller::Controller;
 use crate::files::{self, DirListing};
+use crate::helper::{NativeStatus, PixelRect};
 use crate::layout::ContentSize;
+use crate::native::{NativeBridge, NativePreviewResult};
 use crate::preview::{self, FitRoute, PreviewState};
 
 const FORBIDDEN: &str = "Forbidden";
@@ -72,21 +77,22 @@ pub fn rendered(
     Ok(())
 }
 
-/// 닫기 버튼
+/// 닫기 버튼. 헬퍼의 Esc·Space 와 같은 길(Controller::close)로 닫는다.
 #[tauri::command]
 pub fn close(
     webview: Webview,
-    app: AppHandle,
+    controller: State<'_, Arc<Controller>>,
     state: State<'_, PreviewState>,
 ) -> Result<(), String> {
     from_preview(&webview)?;
     if state.is_open() {
-        preview::hide(&app);
+        controller.close();
     }
     Ok(())
 }
 
-/// 텍스트 선택 여부. 지금은 저장만 한다(헬퍼가 Ctrl+C 를 가로챌지 정하는 데 쓰이는 것은 M3).
+/// 텍스트 선택 여부. 지금은 저장만 하고 헬퍼에는 알리지 않는다: 알리면 헬퍼가 Ctrl+C 를 삼키는데, 선택한 텍스트를
+/// 클립보드에 쓰는 복사(`key{copy}` 처리)가 아직 없어 아무 일도 일어나지 않기 때문이다. 복사와 함께 연결한다.
 #[tauri::command]
 pub fn text_selected(
     webview: Webview,
@@ -114,4 +120,73 @@ pub async fn list_dir(
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())
+}
+
+/// Windows 미리보기 핸들러(Office 등)를 미리보기 창 안 rect(클라이언트 영역, 물리 픽셀)에 띄운다.
+/// 현재 표시 중인 경로만 허용한다. 인터넷에서 받은 파일(Mark of the Web)은 외부 파서를 돌리지 않고 `unavailable` 로 답한다.
+/// 헬퍼가 8초 안에 답하지 않으면 `failed` 로 끝난다(렌더러가 자체 렌더러로 넘어간다).
+#[tauri::command]
+pub async fn native_open(
+    webview: Webview,
+    app: AppHandle,
+    state: State<'_, PreviewState>,
+    native: State<'_, NativeBridge>,
+    path: String,
+    rect: PixelRect,
+) -> Result<NativePreviewResult, String> {
+    from_preview(&webview)?;
+    if !state.is_allowed(webview.label(), &path) || !rect.is_valid() {
+        return Err(FORBIDDEN.into());
+    }
+    let zone_path = path.clone();
+    let from_internet =
+        tauri::async_runtime::spawn_blocking(move || files::is_from_internet(&zone_path))
+            .await
+            .map_err(|e| e.to_string())?;
+    if from_internet {
+        return Ok(NativePreviewResult {
+            handle: 0,
+            status: NativeStatus::Unavailable,
+            message: Some("internet-zone".into()),
+        });
+    }
+    let window = app
+        .get_webview_window(preview::LABEL)
+        .ok_or_else(|| FORBIDDEN.to_string())?;
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize as i64;
+    let dark = window.theme().is_ok_and(|t| t == tauri::Theme::Dark);
+    let result = native.open(&path, hwnd, rect, dark).await;
+    // 기다리는 사이 미리보기가 닫히거나 다른 파일로 바뀌었으면 띄운 핸들러 창을 바로 내린다
+    if result.status == NativeStatus::Shown && !state.is_allowed(preview::LABEL, &path) {
+        native.close(result.handle);
+        return Ok(NativePreviewResult::failed(result.handle, "hidden"));
+    }
+    Ok(result)
+}
+
+/// 네이티브 미리보기 표시 영역 변경. 경로를 받지 않으므로 호출한 웹뷰와 handle(마지막으로 연 요청)만 검사한다.
+#[tauri::command]
+pub fn native_resize(
+    webview: Webview,
+    native: State<'_, NativeBridge>,
+    handle: i32,
+    rect: PixelRect,
+) -> Result<(), String> {
+    from_preview(&webview)?;
+    if rect.is_valid() {
+        native.resize(handle, rect);
+    }
+    Ok(())
+}
+
+/// 네이티브 미리보기 닫기(검사는 native_resize 와 같다)
+#[tauri::command]
+pub fn native_close(
+    webview: Webview,
+    native: State<'_, NativeBridge>,
+    handle: i32,
+) -> Result<(), String> {
+    from_preview(&webview)?;
+    native.close(handle);
+    Ok(())
 }

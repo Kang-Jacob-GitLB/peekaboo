@@ -43,14 +43,18 @@ export type HelperMessage =
 
 // ---- Electron -> Helper ----
 export type HostMessage =
-  /** hostPid = 미리보기 창을 띄우는 이 프로세스. 그 창이 포그라운드일 때 헬퍼가 Space/Esc/Ctrl+C 를 받아 준다 */
-  | { v: 1; type: 'config'; enabled: boolean; hostPid?: number }
+  /**
+   * hostPid = 미리보기 창을 띄우는 이 프로세스. 그 창이 포그라운드일 때 헬퍼가 Space/Esc/Ctrl+C 를 받아 준다.
+   * hostPids = 호스트의 창을 소유할 수 있는 프로세스 전체(Tauri: 앱 + WebView2 브라우저 프로세스, `<select>` 팝업 등이 후자의 창).
+   * hostPid 와 hostPids 중 하나라도 포그라운드면 호스트 창이 포그라운드인 것으로 본다. Electron 은 hostPids 를 보내지 않는다.
+   */
+  | { v: 1; type: 'config'; enabled: boolean; hostPid?: number; hostPids?: number[] }
   | { v: 1; type: 'state'; previewOpen: boolean }
   /** 미리보기 창에 텍스트가 선택돼 있는지. true 인 동안만 헬퍼가 Ctrl+C 를 삼키고 key(copy) 를 보낸다 */
   | { v: 1; type: 'textSelection'; selected: boolean }
   | { v: 1; type: 'getSelection'; id: number }
   | { v: 1; type: 'ping'; id: number }
   | { v: 1; type: 'shutdown' }
-  | { v: 1; type: 'nativePreview.open'; id: number; path: string; hwnd: number; rect: PixelRect; dark: boolean }
+  | { v: 1; type: 'nativePreview.open'; id: number; path: string; hwnd: number; rect: PixelRect; dark: boolean; raise?: boolean }
   | { v: 1; type: 'nativePreview.resize'; id: number; rect: PixelRect }
   | { v: 1; type: 'nativePreview.close'; id: number }

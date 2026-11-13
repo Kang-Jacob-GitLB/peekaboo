@@ -10,6 +10,9 @@
     "allow-close",
     "allow-text-selected",
     "allow-list-dir",
+    "allow-native-open",
+    "allow-native-resize",
+    "allow-native-close",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]
