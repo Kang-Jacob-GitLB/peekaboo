@@ -56,6 +56,10 @@ jobs:
       - name: 타입 검사
         run: npm run typecheck
 
+      # 렌더러의 파일 해석(zip·tar·텍스트)을 예전 Node 구현의 출력과 비교한다(test/fixtures/expected)
+      - name: 테스트
+        run: npm test
+
       - name: 빌드 (electron-vite)
         run: npm run build
 

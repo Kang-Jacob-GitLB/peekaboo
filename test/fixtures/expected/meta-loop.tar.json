@@ -1,0 +1,62 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "real.txt",
+    "isDirectory": false,
+    "size": 4,
+    "compressedSize": 4,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": false,
+  "truncated": false,
+  "scanLimited": false,
+  "totalSize": 4,
+  "compressedSize": 4,
+  "encrypted": false
+ }
+}

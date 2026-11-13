@@ -1,0 +1,52 @@
+{
+ "0": {
+  "text": "",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "1": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "2": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "3": {
+  "text": "한",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "4": {
+  "text": "한�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "5": {
+  "text": "�湲",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "7": {
+  "text": "한글 ",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "8": {
+  "text": "�湲 �",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "16": {
+  "text": "�湲 ��ㅽ�",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "1000": {
+  "text": "한글 텍스트 abc\n가나다라마바사\n한글 텍스트 abc\n가나다라마바사\n한글 텍스트 abc\n가나다라마바사\n",
+  "truncated": false,
+  "encoding": "utf-8"
+ }
+}

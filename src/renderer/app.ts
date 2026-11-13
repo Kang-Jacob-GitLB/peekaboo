@@ -1,9 +1,10 @@
 import { findPlugin } from './plugins/registry'
 import { formatSize } from './plugins/format'
 import type { PreviewPlugin } from './plugins/types'
+import { createHost } from './host'
 import type { ContentSize, ShowPayload } from '../shared/preview-api'
 
-const host = window.peekaboo
+const host = createHost()
 const LOADING_DELAY_MS = 120
 
 const app = document.getElementById('app')!

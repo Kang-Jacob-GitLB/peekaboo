@@ -1,0 +1,52 @@
+{
+ "0": {
+  "text": "",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "1": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "2": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "3": {
+  "text": "가",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "4": {
+  "text": "가�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "5": {
+  "text": "媛�",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "7": {
+  "text": "가나�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "8": {
+  "text": "媛��",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "16": {
+  "text": "가나다라마",
+  "truncated": false,
+  "encoding": "utf-8"
+ },
+ "1000": {
+  "text": "가나다라마",
+  "truncated": false,
+  "encoding": "utf-8"
+ }
+}

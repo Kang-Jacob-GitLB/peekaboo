@@ -1,0 +1,164 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "dir/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "dir/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "dir/a.txt",
+    "isDirectory": false,
+    "size": 1000,
+    "compressedSize": 1000,
+    "mtimeMs": 1700000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 1000,
+  "compressedSize": 1000,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "dir/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "dir/a.txt",
+    "isDirectory": false,
+    "size": 1000,
+    "compressedSize": 1000,
+    "mtimeMs": 1700000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "link",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 1000,
+  "compressedSize": 1000,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "dir/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "dir/a.txt",
+    "isDirectory": false,
+    "size": 1000,
+    "compressedSize": 1000,
+    "mtimeMs": 1700000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "link",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "hard",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "한글.txt",
+    "isDirectory": false,
+    "size": 10,
+    "compressedSize": 10,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "b.bin",
+    "isDirectory": false,
+    "size": 513,
+    "compressedSize": 513,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 6,
+  "totalIsLowerBound": false,
+  "truncated": false,
+  "scanLimited": false,
+  "totalSize": 1523,
+  "compressedSize": 1523,
+  "encrypted": false
+ }
+}

@@ -1,0 +1,52 @@
+{
+ "0": {
+  "text": "",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "1": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "2": {
+  "text": "��",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "3": {
+  "text": "�ѱ",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "4": {
+  "text": "�ѱ�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "5": {
+  "text": "한글 ",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "7": {
+  "text": "한글 테",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "8": {
+  "text": "한글 테�",
+  "truncated": true,
+  "encoding": "euc-kr"
+ },
+ "16": {
+  "text": "한글 테스트\nabc\n",
+  "truncated": false,
+  "encoding": "euc-kr"
+ },
+ "1000": {
+  "text": "한글 테스트\nabc\n",
+  "truncated": false,
+  "encoding": "euc-kr"
+ }
+}
