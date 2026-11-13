@@ -84,6 +84,12 @@ export interface ArchiveListing {
   scanLimited?: boolean
 }
 
+/** 복사한 텍스트의 규모 */
+export interface CopiedInfo {
+  chars: number
+  lines: number
+}
+
 export interface PeekabooApi {
   /** 새 파일 표시 요청 */
   onShow(cb: (payload: ShowPayload) => void): void
@@ -91,14 +97,22 @@ export interface PeekabooApi {
   onShowError(cb: (err: ShowError) => void): void
   /** 창이 숨겨지기 직전 — 재생 중인 미디어 정지 등 정리용 */
   onHide(cb: () => void): void
-  /** 선택한 텍스트를 우클릭으로 클립보드에 복사했을 때(복사는 main 이 한다) */
-  onCopied(cb: () => void): void
+  /**
+   * 선택한 텍스트를 클립보드에 복사했을 때(복사는 호스트가 한다).
+   * Tauri 호스트는 복사한 글자 수·줄 수를 함께 알려 렌더러가 토스트에 보여 준다(보이지 않는 글자가 섞인 복사를 알아채게). Electron 은 값이 없다.
+   */
+  onCopied(cb: (info?: CopiedInfo) => void): void
   /** 닫기 버튼: 미리보기를 닫아 달라고 main 에 요청한다 */
   close(): void
   /** 텍스트 선택이 생기거나 없어질 때 알린다. 선택이 있을 때만 헬퍼가 Ctrl+C 를 가로챈다(없으면 탐색기의 파일 복사). */
   textSelected(selected: boolean): void
   /** Ctrl+C 를 눌렀을 때 main 이 선택한 텍스트를 묻는다. 돌려준 문자열을 main 이 클립보드에 쓴다. */
   onCopyRequest(cb: () => string): void
+  /**
+   * 헤더 드래그로 창 이동을 시작한다. 구현하는 호스트(Tauri)에서만 있다 — 렌더러는 있을 때 헤더 mousedown 에서 부르고,
+   * 없는 호스트(Electron)는 CSS `-webkit-app-region: drag` 가 창을 옮긴다.
+   */
+  startDrag?(): void
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */
   listDir(path: string, max: number): Promise<{ entries: DirEntry[]; truncated: boolean }>
   /** <img>/<video> 등에 쓸 수 있는 peek:// URL. 현재 표시 중인 파일만 서빙된다. */

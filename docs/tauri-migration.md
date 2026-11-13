@@ -1,8 +1,9 @@
 # Electron → Tauri 2 전환 계획
 
-> 상태: **계획**(2026-11-13). 아직 아무것도 구현·실측하지 않았다. Tauri 쪽 내용은 공식 문서(v2.tauri.app, docs.rs)와
-> wry·tao 소스, Microsoft Learn 을 읽고 판단한 것이다. 이 계획 전체가 M0 시험 구현의 판정에 걸려 있다.
-> 근거 표기 `파일:줄` 은 이 문서를 쓴 시점(67710ca)의 저장소 기준이다.
+> 상태: **진행 중**(2026-11-16). M0 판정(2·3번 제외)을 마쳤고 사용자 결정으로 전환을 계속한다("M0 판정 결과" 절).
+> M1·M2·M3(헬퍼·네이티브 미리보기·창 동작·복사·WebView2 보호)까지 main 에 들어갔고, Tauri 는 아직 배포하지 않는다.
+> 이 문서를 처음 쓸 때(2026-11-13)는 공식 문서(v2.tauri.app, docs.rs)·wry·tao 소스·Microsoft Learn 만 근거였고, 이후 실측으로 바뀐 내용은 해당 절에 표시했다.
+> 근거 표기 `파일:줄` 은 처음 쓴 시점(67710ca)의 저장소 기준이다.
 
 ## 0. 결론
 
@@ -94,10 +95,10 @@ Tauri(wry)는 최상위 창 아래 `WRY_WEBVIEW` 자식 창(`WS_CLIPSIBLINGS` �
 | `sandbox`·`contextIsolation` (`preview-window.ts:304-310`) | WebView2 렌더러는 항상 Chromium 샌드박스. 단 `__TAURI_INTERNALS__` 가 메인 월드에 있어 페이지 스크립트가 IPC 를 부를 수 있다. 신뢰하지 않는 내용이 메인 프레임에서 스크립트를 실행할 수 없다는 전제(스크립트 없는 iframe, DOMPurify)가 유지되는 한 문제없다 |
 | 송신자 검증 `fromPreview` (`:415`) | 앱 커맨드는 기본이 "모든 창 허용"이므로 `build.rs` `AppManifest::commands` 로 ACL 아래에 두고 capability 는 `preview-*` 창에만. 커맨드마다 라벨과 경로 검사 |
 | 코어 권한 | `core:event:allow-listen/unlisten` 만. `core:window:*` 은 주지 않는다 |
-| sandbox iframe (`src/renderer/plugins/html/index.ts:24`) | Windows 에서는 초기화 스크립트가 서브프레임에도 주입된다. 스크립트가 꺼진 프레임에서는 실행되지 않을 것으로 보지만 **M0 에서 실측** |
+| sandbox iframe (`src/renderer/plugins/html/index.ts:24`) | **주입됨(M0 실측)**: sandbox iframe 안에도 `__TAURI_INTERNALS__` 가 들어 있다. `allow-scripts` 가 없어 스크립트가 실행되지 않으므로 호출할 수단이 없을 뿐이다. 그래서 `allow-scripts` 를 추가하면 즉시 IPC 가 노출된다 — 불변식으로 지킨다(아래 "M0 판정 결과" 6) |
 | `will-frame-navigate`, 새 창 차단 | `FrameNavigationStarting` 취소, wry 기본 거부 |
 | UNC 차단 | **실측 전에는 막힌다고 단정하지 않는다.** HTML·Markdown 의 `<img src="file://호스트/…">` 로 SMB 연결이 생기는지 확인하고, 새면 `WebResourceRequested` 로 403 |
-| 클립보드 | 우클릭은 호스트 이벤트, Ctrl+C 는 기존 `pendingCopy` id 가드를 Rust 로. 렌더러가 임의 문자열을 쓰는 커맨드는 만들지 않는다 |
+| 클립보드 | 우클릭은 호스트 이벤트(`ContextMenuRequested` 의 선택 텍스트를 호스트가 클립보드에 쓴다). Ctrl+C 는 기존 `pendingCopy` id 가드를 Rust 로 옮겼다: 헬퍼의 `key{copy}` 로 호스트가 요청 id 를 발급하면 렌더러가 같은 id 로 `copy_text` 커맨드를 불러 문자열을 넘기고, 호스트는 id 가 지금 기다리는 1회용 번호와 같을 때만 그 문자열을 클립보드에 쓴다(요청 없이 온 응답·낡은 id·두 번째 응답은 버린다). 즉 **렌더러 문자열을 받는 커맨드가 하나 있고**, 그 안전은 (1) 헬퍼 키로만 id 가 발급된다는 점과 (2) 신뢰하지 않는 내용이 메인 프레임에서 스크립트를 실행할 수 없다는 전제(스크립트 없는 sandbox iframe, DOMPurify)에 기댄다. 추가 방어: 16MiB(UTF-8 바이트) 초과 거부, 복사 알림에 글자·줄 수 표시(보이지 않는 글자를 복사한 것을 알아채게) |
 
 isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의존성이 아니라 미리볼 파일이고, 그 내용은 스크립트를 실행할 수 없는 구조다.
 
@@ -109,7 +110,7 @@ isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의
 - **클릭**: WebView2 콘텐츠 창은 다른 프로세스(msedgewebview2)의 자식이라, 비활성 창 클릭 시 활성화 여부를 실측해야 한다.
 - **`<select>` 드롭다운**: 팝업이 msedgewebview2 소유 최상위 창이라 헬퍼가 "다른 앱 전환"으로 오인할 수 있다. `config.hostPids`(앱 PID + `BrowserProcessId`)를 추가 필드로 보낸다. 바뀌는 곳: `helper/HelperCore.cs`, `helper/Input/FocusInspector.cs`, `helper/Ipc/Messages.cs`, `src/shared/ipc-types.ts`, `docs/ipc.md`.
 - **헤더 드래그**: WebView2 `IsNonClientRegionSupportEnabled` 는 시스템 메뉴·더블클릭 최대화가 함께 켜지고 사용자 이동을 구분할 수 없어 쓰지 않는다.
-- **spare 창**: 그대로 이식하되 Windows 에서는 동기 커맨드·이벤트 핸들러 안에서 창을 만들면 교착하므로 항상 async 태스크에서. WebView2 가 렌더러 프로세스를 공유하면 교체 효과가 없을 수 있어 M3 에서 확인한다.
+- **spare 창**: M3b 에서 **이식하지 않기로 했다.** 창 하나를 계속 쓰고, 렌더러가 죽으면 `ProcessFailed` 에서 페이지를 다시 불러온다(`src-tauri/src/guard.rs`). WebView2 가 렌더러 프로세스를 공유하면 교체 효과가 없을 수 있고, 창을 만드는 호출은 Windows 에서 동기 컨텍스트 교착 위험이 있어서다.
 - **크기 계산**: Tauri 는 물리 픽셀. 작업 영역 85%, 최소 420×240 등 상수는 DIP 기준을 유지하고 `scale_factor` 로 환산.
 
 ### 3.5 헬퍼
@@ -160,11 +161,36 @@ isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의
 6. sandbox iframe 안에서 IPC 객체를 쓸 수 없고 스크립트가 실행되지 않는다. `file://호스트/` 요청이 나가지 않는다.
 7. 실측: 설치본·설치 폴더 크기, 유휴 메모리(프로세스별), 콜드 스타트, Space→표시 지연.
 
+### M0 판정 결과
+
+**결론: 전환을 계속한다(2026-11-13, 사용자 결정).** 판정 1·4·5·6 은 통과(4·6 은 조건부), 2·3 은 사용자 입력이 필요해 아직 실측하지 못했다.
+메모리 절감이 보류 기준 2(50MB 미만)에 해당했으나, 설치·업데이트 크기 이득을 근거로 계속하기로 했다.
+
+1. **포커스 유지(프로그램 표시): 통과.** tao·HWND 직접 두 방식 모두 5/5, 숨긴 채 만든 창의 첫 표시 포함. 근거 PR #22.
+2. **클릭·드래그 뒤 포커스, 3. `<select>` 뒤 포커스: 미실측.** 사용자 입력이 필요하다. 사용자가 PC 를 비울 때 진행한다.
+4. **네이티브 겹치기: 조건부 통과.** 헬퍼 컨테이너가 `WRY_WEBVIEW` 아래에 생성돼 그대로는 0/25, 컨테이너를 `HWND_TOP` 으로 올리면 5/5.
+   `nativePreview.open.raise` 로 Tauri 에만 적용했다(#25). M3b 에서 PowerToys 핸들러로 화면 밖 재확인한다.
+5. **미디어·대용량 PDF: 통과.** mp4(moov 앞/뒤)·webm 4종 재생·탐색 성공, 4MiB 이어받기 정상. 99MiB PDF 는 열렸으나 호스트 순간 메모리가 약 1,000MiB 였다.
+   M3b 에서 4MiB 조각 읽기(`read-binary.ts`)로 바꿔 피크 약 67MiB. 실측 중 Electron 의 기존 버그(비표준 스킴 + `crossorigin` 없음으로 두 번째 Range 응답 거부)를 발견해 #26 으로 고치고 v0.10.1 로 배포했다.
+6. **iframe·UNC: 조건부 통과.** 스크립트 실행 0, UNC 연결 시도 0(대조군에서는 879건 검출).
+   단 sandbox iframe 안에도 `__TAURI_INTERNALS__` 가 주입된다(계획서 예상과 다름). 스크립트가 꺼져 있어 호출 수단이 없을 뿐이며,
+   **`allow-scripts` 를 추가하면 즉시 IPC 가 노출된다. HTML 미리보기 iframe 에 `allow-scripts` 를 넣지 않는 것을 불변식으로 한다.**
+7. **크기·메모리·시작: 측정함.** 설치본 122.2MiB → 추정 약 8.6MiB(exe+헬퍼 LZMA), 설치 폴더 378MiB → 약 23MiB,
+   유휴 Private 274.3 → 252.8MiB(절감 21.5MiB: WebView2 의 browser·crashpad·storage 프로세스가 Node main 몫을 대부분 채운다). 시작 시간은 차이를 판별하지 못했다.
+
+**결정(2026-11-13, 사용자)**: 보류 기준 2(메모리 절감 50MB 미만)에 해당하나 설치·업데이트 크기 이득을 근거로 전환을 계속한다.
+
 ### 캡처 방식
 
 `npm run build:web:tauri` → `cargo build` → `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> src-tauri/target/debug/peekaboo.exe`.
 이 모드에서는 single-instance 를 등록하지 않고, WebView2 데이터 폴더를 임시 폴더로 바꾸고, 헬퍼는 `PEEKABOO_HELPER=1` 일 때만 띄운다(키보드 훅 중복 방지).
 CapturePreview 는 웹 콘텐츠만 찍는다(Office 네이티브 창 제외, `capturePage` 와 같음).
+
+**화면 밖 모드**: `PEEKABOO_OFFSCREEN=1` 을 함께 주면(Electron·Tauri 공통, 디버그 전용) 창을 모든 모니터의 왼쪽 바깥에 두고 크기는 주 모니터 기준으로 계산한다.
+위치는 한 곳(`place`)에서만 정해 처음 표시·fit 이 창을 화면 안으로 끌어오지 않고, 띄우기 직전 실제 창 사각형이 모니터와 겹치면 띄우지 않고 종료한다.
+Chromium 이 가려진 창의 렌더를 멈추지 않게 Electron 은 `backgroundThrottling:false` + `disable-features=CalculateNativeWinOcclusion`,
+Tauri 는 WebView2 브라우저 인자를 쓴다. Tauri 의 `additional_browser_args` 는 wry 의 기본 인자를 **대체**하므로 기본값(`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`,
+`--autoplay-policy=no-user-gesture-required`)을 합쳐 넣는다(`src-tauri/src/preview.rs` `OFFSCREEN_BROWSER_ARGS`). 이 모드에서는 헬퍼(Electron)·트레이도 띄우지 않고 캡처 뒤 종료한다.
 
 ## 5. CI·릴리스
 
@@ -192,13 +218,13 @@ Tauri NSIS 는 설치 경로(`%LOCALAPPDATA%\Peekaboo`)와 제거 키(`HKCU\…\
 
 ## 7. 이득과 비용
 
-| 지표 | Electron(실측, 2026-11-13) | Tauri(추정, M0 에서 실측) |
+| 지표 | Electron(실측, 2026-11-13) | Tauri(M0 실측·추정 구분 표기) |
 |---|---|---|
-| 설치본 | 128MB | 약 8~15MB |
-| 설치 폴더 | 379MB | 약 25~40MB(WebView2 는 OS 공용) |
-| 업데이트 내려받기 | 최대 약 128MB | 약 10MB |
-| 유휴 메모리 | Electron 4개 프로세스 Private 합 약 289MB + 헬퍼 32MB | 같은 Chromium 프로세스 구조라 절감은 Node main 몫 약 80~150MB 로 추정 |
-| Space→표시 지연 | 로그 `shown in …ms` | 비슷할 것으로 봄 |
+| 설치본 | 128MB(실측 122.2MiB) | 약 8.6MiB(**추정**: exe+헬퍼 LZMA 압축) |
+| 설치 폴더 | 379MB(실측 378MiB) | 약 23MiB(WebView2 는 OS 공용) |
+| 업데이트 내려받기 | 최대 약 128MB | 약 8.6MiB(**추정**, 설치본과 같다고 봄) |
+| 유휴 메모리 | Private 274.3MiB(M0 실측) | **실측** 252.8MiB, 절감 21.5MiB(처음 추정 80~150MB 보다 작다: WebView2 browser·crashpad·storage 프로세스가 Node main 몫을 대부분 채운다) |
+| Space→표시 지연 | 로그 `shown in …ms` | 차이를 판별하지 못함(실측 불가) |
 
 **잃는 것**: Chromium 버전 고정(사용자 PC 의 Evergreen WebView2 에 의존, 코덱은 Edge 미디어 스택), 알림 클릭 설치, 종료 시 자동 설치, `-webkit-app-region` 드래그. Electron 이 그냥 주던 기능을 COM 으로 직접 구현하므로 Rust·webview2-com 지식이 유지보수 요건이 된다.
 
@@ -207,7 +233,7 @@ Tauri NSIS 는 설치 경로(`%LOCALAPPDATA%\Peekaboo`)와 제거 키(`HKCU\…\
 **보류 기준**:
 
 1. M0 판정 1~4 중 하나라도 대안 두 가지로 풀리지 않으면 보류한다.
-2. M0 실측 메모리 절감이 50MB 미만이면 재평가한다. 대안은 Electron 유지 + 패키지 경량화.
+2. M0 실측 메모리 절감이 50MB 미만이면 재평가한다. 대안은 Electron 유지 + 패키지 경량화. (M0 실측 21.5MiB 로 해당했고, 2026-11-13 사용자가 설치·업데이트 크기 이득을 근거로 계속하기로 결정했다. "M0 판정 결과" 참고)
 3. M6 베타에서 포커스·Office 회귀가 풀리지 않으면 전환 PR 을 머지하지 않는다.
 
 ## 8. 위험(⚠ = 되돌리기 어려움)

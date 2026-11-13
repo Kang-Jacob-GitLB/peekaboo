@@ -156,6 +156,7 @@ impl Controller {
         let (enabled, host_pids) = self.host_pids();
         let ctx = Ctx {
             preview_open: false, // config 에는 쓰이지 않는다
+            text_selected: false,
             enabled,
             app_pid: std::process::id(),
             host_pids: &host_pids,
@@ -170,6 +171,20 @@ impl Controller {
         let _order = self.state_sync.lock().unwrap_or_else(|e| e.into_inner());
         let open = self.app.state::<PreviewState>().is_open();
         self.helper.send(&session::state_message(open));
+    }
+
+    /// 미리보기 창의 텍스트 선택 여부를 헬퍼에 알린다(true 인 동안만 헬퍼가 Ctrl+C 를 삼킨다).
+    /// 닫을 때는 `state{previewOpen:false}` 가 헬퍼의 값을 되돌리므로 따로 보내지 않는다.
+    ///
+    /// 렌더러 알림을 받은 뒤 여기까지 오는 사이 창이 닫혔을 수 있다. 그때 늦게 도착한 true 가 `previewOpen:false` 뒤에
+    /// 헬퍼에 남으면 닫힌 뒤에도 Ctrl+C 를 삼킨다. `sync_helper_state` 와 같은 잠금 안에서 상태를 다시 읽어
+    /// 지금 값과 같을 때만 보낸다(닫기는 선택을 false 로 되돌린다).
+    pub fn send_text_selection(&self, selected: bool) {
+        let _order = self.state_sync.lock().unwrap_or_else(|e| e.into_inner());
+        if self.app.state::<PreviewState>().text_selected() != selected {
+            return;
+        }
+        self.helper.send(&HostMessage::TextSelection { selected });
     }
 
     /// 헬퍼의 첫 `ready` 를 기다린다. 제한 시간 안에 오면 true.
@@ -195,6 +210,7 @@ impl Controller {
         let (enabled, host_pids) = self.host_pids();
         let ctx = Ctx {
             preview_open: state.is_open(),
+            text_selected: state.text_selected(),
             enabled,
             app_pid: std::process::id(),
             host_pids: &host_pids,
@@ -228,6 +244,8 @@ impl Controller {
                 });
             }
             Action::Close => self.close(),
+            Action::RequestCopy => preview::request_copy(&self.app),
+            Action::SetActivatable(activatable) => preview::set_activatable(&self.app, activatable),
             Action::NativeResult {
                 id,
                 status,

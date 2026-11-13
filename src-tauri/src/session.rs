@@ -10,6 +10,8 @@ use crate::helper::{HelperMessage, HostMessage, KeyName, NativeStatus};
 pub struct Ctx<'a> {
     /// 미리보기가 보이는 중이거나 띄우는 중
     pub preview_open: bool,
+    /// 보이는 창에 텍스트가 선택돼 있다(헬퍼가 다시 뜰 때 알려야 한다)
+    pub text_selected: bool,
     /// 단축키 설정(`config.enabled`)
     pub enabled: bool,
     /// 이 앱의 PID
@@ -39,6 +41,10 @@ pub enum Action {
     },
     /// 미리보기를 닫는다(대기 중인 열기 요청도 취소). 헬퍼에 `state{previewOpen:false}` 도 항상 알린다.
     Close,
+    /// Ctrl+C: 렌더러에 선택한 텍스트를 묻는다(요청 번호는 PreviewState 가 만든다)
+    RequestCopy,
+    /// 클릭하면 포커스를 받는 창으로 할지(다른 앱이 포그라운드인 동안만 true)
+    SetActivatable(bool),
     /// 네이티브 미리보기 요청의 응답
     NativeResult {
         id: i32,
@@ -108,7 +114,14 @@ impl Session {
                 Action::Send(HostMessage::State {
                     preview_open: ctx.preview_open,
                 }),
-            ],
+            ]
+            .into_iter()
+            // 헬퍼는 다시 뜨면 선택이 없다고 보므로, 선택이 남아 있으면 알린다
+            .chain(
+                ctx.text_selected
+                    .then_some(Action::Send(HostMessage::TextSelection { selected: true })),
+            )
+            .collect(),
             HelperMessage::Key { key, .. } => match key {
                 // 여는 중(getSelection 응답 대기)에 다시 Space 를 누르면 취소로 본다
                 KeyName::Space if ctx.preview_open || !self.pending_open.is_empty() => {
@@ -116,11 +129,8 @@ impl Session {
                 }
                 KeyName::Space => self.open_preview(),
                 KeyName::Esc | KeyName::Enter => vec![Action::Close],
-                // 헬퍼는 미리보기에 텍스트 선택이 있다고 알려 준 경우에만 복사 키를 보낸다. 호스트가 그 알림(textSelection)을
-                // 아직 보내지 않으므로 오지 않는 키다(복사는 M3 의 뒷 작업).
-                KeyName::Copy => vec![Action::Log(
-                    "복사 키를 받았지만 아직 지원하지 않는다".into(),
-                )],
+                // 헬퍼는 미리보기에 텍스트 선택이 있다고 알려 준 경우에만 복사 키를 보낸다
+                KeyName::Copy => vec![Action::RequestCopy],
                 // 방향키: 탐색기가 선택을 옮기고, 헬퍼가 selection 알림을 보낸다
                 _ => Vec::new(),
             },
@@ -157,14 +167,18 @@ impl Session {
             HelperMessage::Foreground { pid, shell } => {
                 // 다른 앱으로 전환해도 닫지 않는다(Quick Look 처럼 떠 있게 둔다). 이 앱 자신의 창(미리보기, WebView2 의
                 // `<select>` 팝업 같은 브라우저 프로세스의 창)으로 바뀐 것은 전환이 아니다.
-                // 다른 앱이 포그라운드인 동안 미리보기 창이 클릭으로 포커스를 받게 하는 것(setActivatable)은 아직 없다.
-                if ctx.host_pids.contains(&pid) || shell || !ctx.preview_open {
-                    Vec::new()
-                } else {
-                    vec![Action::Log(format!(
-                        "foreground moved to pid {pid} (preview kept open)"
-                    ))]
+                if ctx.host_pids.contains(&pid) {
+                    return Vec::new();
                 }
+                // 다른 앱이 포그라운드인 동안은 미리보기를 클릭하면 포커스가 가게 해, 그 상태의 Space/Esc 로도 닫을 수 있게 한다.
+                // 셸(탐색기 등)이 포그라운드면 클릭해도 탐색기 포커스가 남아야 한다. 값이 바뀔 때만 적용하는 것은 실행하는 쪽이 한다.
+                let mut actions = vec![Action::SetActivatable(!shell)];
+                if !shell && ctx.preview_open {
+                    actions.push(Action::Log(format!(
+                        "foreground moved to pid {pid} (preview kept open)"
+                    )));
+                }
+                actions
             }
             HelperMessage::Error { id, code, message } => {
                 if let Some(id) = id {
@@ -186,6 +200,7 @@ mod tests {
     fn ctx(preview_open: bool) -> Ctx<'static> {
         Ctx {
             preview_open,
+            text_selected: false,
             enabled: true,
             app_pid: 100,
             host_pids: &[100, 200],
@@ -354,40 +369,64 @@ mod tests {
         let mut s = Session::default();
         // 앱(100)과 WebView2 브라우저 프로세스(200) 모두 무시
         for pid in [100, 200] {
-            assert!(s
-                .on_message(HelperMessage::Foreground { pid, shell: false }, &ctx(true))
-                .is_empty());
+            for shell in [false, true] {
+                assert!(s
+                    .on_message(HelperMessage::Foreground { pid, shell }, &ctx(true))
+                    .is_empty());
+            }
         }
+    }
+
+    #[test]
+    fn foreground_는_셸_밖_앱이면_클릭_포커스를_허용하고_셸이면_막는다() {
+        let mut s = Session::default();
+        let fg = |pid, shell| HelperMessage::Foreground { pid, shell };
+        // 다른 앱: 허용(열려 있으면 로그도)
+        let got = s.on_message(fg(300, false), &ctx(true));
+        assert_eq!(got[0], Action::SetActivatable(true));
+        assert!(matches!(got.get(1), Some(Action::Log(_))));
+        assert_eq!(got.len(), 2);
+        // 닫혀 있으면 로그 없이 허용 상태만
         assert_eq!(
-            s.on_message(
-                HelperMessage::Foreground {
-                    pid: 300,
-                    shell: false
-                },
-                &ctx(true)
-            )
-            .len(),
-            1
+            s.on_message(fg(300, false), &ctx(false)),
+            vec![Action::SetActivatable(true)]
         );
-        // 셸 창, 닫혀 있을 때는 기록하지 않는다
-        assert!(s
-            .on_message(
-                HelperMessage::Foreground {
-                    pid: 300,
-                    shell: true
-                },
-                &ctx(true)
-            )
-            .is_empty());
-        assert!(s
-            .on_message(
-                HelperMessage::Foreground {
-                    pid: 300,
-                    shell: false
-                },
-                &ctx(false)
-            )
-            .is_empty());
+        // 셸(탐색기·바탕화면): 막는다
+        assert_eq!(
+            s.on_message(fg(300, true), &ctx(true)),
+            vec![Action::SetActivatable(false)]
+        );
+    }
+
+    #[test]
+    fn 복사_키는_렌더러에_선택_텍스트를_묻는다() {
+        let mut s = Session::default();
+        assert_eq!(
+            s.on_message(key(KeyName::Copy), &ctx(true)),
+            vec![Action::RequestCopy]
+        );
+    }
+
+    #[test]
+    fn 헬퍼가_다시_뜨면_남아_있는_텍스트_선택을_다시_알린다() {
+        let mut s = Session::default();
+        let ready = || HelperMessage::Ready {
+            version: "1".into(),
+            pid: 5,
+        };
+        let none = s.on_message(ready(), &ctx(true));
+        assert!(!none.contains(&Action::Send(HostMessage::TextSelection { selected: true })));
+        let got = s.on_message(
+            ready(),
+            &Ctx {
+                text_selected: true,
+                ..ctx(true)
+            },
+        );
+        assert_eq!(
+            got.last(),
+            Some(&Action::Send(HostMessage::TextSelection { selected: true }))
+        );
     }
 
     /// 호스트가 헬퍼에 보낸 state 를 모은다. `sync` 는 controller.sync_helper_state 와 같은 규칙(상태를 읽어 그대로 보냄)이다.

@@ -8,6 +8,8 @@ const COMMANDS: &[&str] = &[
     "rendered",
     "close",
     "text_selected",
+    "copy_text",
+    "start_drag",
     "list_dir",
     "native_open",
     "native_resize",

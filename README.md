@@ -98,6 +98,9 @@ npm run build
 $env:PEEKABOO_PREVIEW = "C:\work\notes.md"; npx electron .
 ```
 
+PC 를 쓰는 중에도 확인하려면 `PEEKABOO_OFFSCREEN=1` 을 더합니다. 창이 모든 모니터 밖에 떠서 화면에 보이지 않고 포커스도 가져가지 않으며,
+`PEEKABOO_CAPTURE=<png>` 와 함께 쓰면 캡처 뒤 스스로 종료합니다(자세한 사용법은 CLAUDE.md "확인 방법").
+
 로그(`%APPDATA%\Peekaboo\logs\peekaboo.log`)에 `shown in …ms`, `rendered … in …ms since key` 로 표시 지연이 기록됩니다.
 
 ## 기여·릴리스

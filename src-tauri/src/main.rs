@@ -1,15 +1,18 @@
 // Peekaboo Tauri 호스트(전환 계획 docs/tauri-migration.md M2·M3a).
 // 미리보기 창·peek 프로토콜·렌더러 커맨드에 더해 C# 헬퍼 감시, 키 흐름, 네이티브 미리보기를 연결한다.
-// 트레이, 단일 인스턴스, 설정, 로그 파일은 M4. 창 동작(복사·포커스 허용 등)의 나머지는 M3 의 뒷 작업.
+// M3b: 창 동작(헤더 드래그·클릭 포커스 허용)·복사(우클릭·Ctrl+C)·WebView2 보호(guard.rs)·화면 밖 시험 모드.
+// 트레이, 단일 인스턴스, 설정, 로그 파일은 M4.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(not(windows))]
 compile_error!("Peekaboo 는 Windows 전용이다");
 
 mod capture;
+mod clipboard;
 mod commands;
 mod controller;
 mod files;
+mod guard;
 mod helper;
 mod layout;
 mod native;
@@ -22,12 +25,15 @@ use std::time::Duration;
 
 use tauri::{Manager, RunEvent};
 
-/// 개발 전용 단독 미리보기: `PEEKABOO_PREVIEW=<파일> [PEEKABOO_CAPTURE=<png>]`.
-/// 헬퍼·키 입력 없이 미리보기 창만 확인한다. 캡처 모드는 WebView2 데이터 폴더를 임시 폴더로 써서
+/// 개발 전용 단독 미리보기: `PEEKABOO_PREVIEW=<파일> [PEEKABOO_CAPTURE=<png>] [PEEKABOO_OFFSCREEN=1]`.
+/// 헬퍼·키 입력 없이 미리보기 창만 확인한다. 캡처·화면 밖 모드는 WebView2 데이터 폴더를 임시 폴더로 써서
 /// 설치된 Peekaboo 와 겹치지 않는다.
+/// `PEEKABOO_OFFSCREEN=1` 이면 창을 모든 모니터 밖에 두고(포커스도 가져가지 않는다) Chromium 이 가려진 창의 렌더를 멈추지 않게 한다.
+/// 사용자가 PC 를 쓰는 중에도 화면에 아무것도 띄우지 않고 확인하려는 모드다.
 struct DevPreview {
     path: String,
     capture: Option<PathBuf>,
+    offscreen: bool,
     data_dir: Option<PathBuf>,
 }
 
@@ -40,12 +46,13 @@ impl DevPreview {
             .ok()
             .filter(|p| !p.is_empty())?;
         let capture = std::env::var_os("PEEKABOO_CAPTURE").map(PathBuf::from);
-        let data_dir = capture
-            .is_some()
+        let offscreen = std::env::var("PEEKABOO_OFFSCREEN").is_ok_and(|v| v == "1");
+        let data_dir = (capture.is_some() || offscreen)
             .then(|| std::env::temp_dir().join(format!("peekaboo-capture-{}", std::process::id())));
         Some(DevPreview {
             path,
             capture,
+            offscreen,
             data_dir,
         })
     }
@@ -84,6 +91,7 @@ fn main() {
     let start_helper = helper_plan(dev.is_some());
     let enabled = hotkey_enabled();
     let data_dir = dev.as_ref().and_then(|d| d.data_dir.clone());
+    let offscreen = dev.as_ref().is_some_and(|d| d.offscreen);
     let cleanup_dir = data_dir.clone();
 
     let helper = helper::Helper::default();
@@ -94,6 +102,7 @@ fn main() {
     let app = tauri::Builder::default()
         .manage(native)
         .manage(preview::PreviewState::default())
+        .manage(preview::Offscreen(offscreen))
         .manage(capture::CaptureConfig(
             dev.as_ref().and_then(|d| d.capture.clone()),
         ))
@@ -104,6 +113,8 @@ fn main() {
             commands::rendered,
             commands::close,
             commands::text_selected,
+            commands::copy_text,
+            commands::start_drag,
             commands::list_dir,
             commands::native_open,
             commands::native_resize,
@@ -111,7 +122,8 @@ fn main() {
         ])
         .setup(move |app| {
             // setup 은 동기 커맨드·이벤트 핸들러가 아니라 앱 초기화 단계라 창 생성이 안전하다.
-            let window = preview::create_window(app.handle(), data_dir)?;
+            let window = preview::create_window(app.handle(), data_dir, offscreen)?;
+            guard::install(app.handle(), &window);
             let controller = controller::Controller::new(app.handle().clone(), helper, enabled);
             app.manage(controller.clone());
             // WebView2 브라우저 PID 를 얻은 뒤 헬퍼를 띄운다(hostPids 에 담기 위해)

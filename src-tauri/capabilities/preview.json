@@ -9,6 +9,8 @@
     "allow-rendered",
     "allow-close",
     "allow-text-selected",
+    "allow-copy-text",
+    "allow-start-drag",
     "allow-list-dir",
     "allow-native-open",
     "allow-native-resize",

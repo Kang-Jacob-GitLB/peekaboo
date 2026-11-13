@@ -4,7 +4,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { ContentSize, NativePreviewResult, PeekabooApi } from '../../shared/preview-api'
+import type { ContentSize, CopiedInfo, NativePreviewResult, PeekabooApi } from '../../shared/preview-api'
 import { createFileOps } from './file-ops/index'
 import type { Host } from './index'
 
@@ -16,7 +16,8 @@ const Events = {
   show: 'preview:show',
   showError: 'preview:show-error',
   hide: 'preview:hide',
-  copied: 'preview:copied'
+  copied: 'preview:copied',
+  copyRequest: 'preview:copy-request'
 } as const
 
 function fail(what: string, e: unknown): void {
@@ -47,12 +48,14 @@ export function createTauriHost(): Host {
     onShow: (cb) => on(Events.show, cb),
     onShowError: (cb) => on(Events.showError, cb),
     onHide: (cb) => on(Events.hide, () => cb()),
-    // 복사 알림은 Rust 의 복사 구현(M3)이 보낸다. 아직 보내는 쪽이 없어 호출되지 않는다.
-    onCopied: (cb) => on(Events.copied, () => cb()),
+    // 복사 알림은 Rust 가 클립보드에 쓴 뒤 보낸다(우클릭·Ctrl+C 모두)
+    onCopied: (cb) => on<CopiedInfo | null>(Events.copied, (info) => cb(info ?? undefined)),
     close: () => send('close'),
     textSelected: (selected) => send('text_selected', { selected }),
-    // Ctrl+C 복사 요청(헬퍼가 키를 가로채 Rust 가 렌더러에 선택 텍스트를 묻는다)은 M3 에서 구현한다. 지금은 요청이 오지 않는다.
-    onCopyRequest: () => {},
+    // Ctrl+C: 헬퍼가 키를 가로채면 Rust 가 요청 번호와 함께 묻는다. 같은 번호로 답해야 Rust 가 클립보드에 쓴다.
+    onCopyRequest: (cb) => on<number>(Events.copyRequest, (id) => send('copy_text', { id, text: cb() })),
+    // 헤더 드래그는 -webkit-app-region 대신 Rust 가 창 이동을 시작한다(base.css 의 data-window-drag)
+    startDrag: () => send('start_drag'),
     listDir: (path, max) => invoke('list_dir', { path, max }),
     fileUrl: (path) => PEEK_ORIGIN + encodeURIComponent(path),
     rendered: (seq) => send('rendered', { seq }),

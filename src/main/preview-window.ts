@@ -1,10 +1,11 @@
-import { BrowserWindow, clipboard, ipcMain, nativeTheme, screen } from 'electron'
+import { app, BrowserWindow, clipboard, ipcMain, nativeTheme, screen } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
 import type { ContentSize, ShowPayload } from '../shared/preview-api'
 import { getFileInfo, listDirectory } from './file-service'
 import { createLogger } from './logger'
+import { offscreenOrigin, overlapsAny } from './offscreen'
 import type { NativePreviewBridge } from './native-preview'
 import type { PixelRect } from '../shared/ipc-types'
 
@@ -65,6 +66,8 @@ export class PreviewWindow {
   private activatable = false
   /** 사용자가 헤더를 끌어 창을 옮겼는지. 그 뒤로는 파일을 넘겨 크기가 바뀌어도 화면 중앙으로 되돌리지 않는다(닫으면 초기화) */
   private userMoved = false
+  /** 다음 `rendered` 신호를 기다리는 곳(화면 밖 시험 모드의 캡처 시점) */
+  private renderedWaiters: Array<() => void> = []
 
   constructor(
     private readonly keepWarmSeconds: () => number,
@@ -72,7 +75,9 @@ export class PreviewWindow {
     /** 텍스트 선택 여부가 바뀌었을 때(헬퍼의 Ctrl+C 가로채기 판단용) */
     private readonly onTextSelection: (selected: boolean) => void,
     /** 렌더러의 닫기 버튼 */
-    private readonly onCloseRequest: () => void
+    private readonly onCloseRequest: () => void,
+    /** 화면 밖 시험 모드(PEEKABOO_OFFSCREEN=1): 창을 모든 모니터 밖에 두고, 가려진 창의 렌더를 멈추지 않는다 */
+    private readonly offscreen = false
   ) {
     this.registerIpc()
   }
@@ -123,9 +128,15 @@ export class PreviewWindow {
       // 기다리는 동안에도 openingSeq 를 유지해 isOpen 이 true 로 남게 한다(그 사이 Esc·앱 전환·Space 로 취소 가능)
       await this.waitFirstFit()
       if (seq !== this.seq || win.isDestroyed()) return
-      const area = cursorWorkArea()
+      const area = this.offscreen ? screen.getPrimaryDisplay().workArea : cursorWorkArea()
       if (this.firstFit) this.fit(win, this.firstFit, area)
       else this.position(win, area)
+      if (this.offscreen && overlapsAny(win.getBounds(), screen.getAllDisplays().map((d) => d.bounds))) {
+        // 어느 모니터에든 걸친 채 띄우면 사용자 화면에 보인다. 띄우지 않고 끝낸다.
+        log.error('offscreen mode: window overlaps a display; not showing it, exiting')
+        app.exit(1)
+        return
+      }
       win.showInactive()
       this.visible = true
       log.info(`shown in ${(performance.now() - req.t0).toFixed(0)}ms since key`)
@@ -263,6 +274,11 @@ export class PreviewWindow {
     this.spare = null
   }
 
+  /** 렌더러의 다음 `rendered` 신호까지 기다린다(개발용 캡처가 렌더 완료를 기다리는 데 쓴다) */
+  whenRendered(): Promise<void> {
+    return new Promise((resolve) => this.renderedWaiters.push(resolve))
+  }
+
   /** 개발용 스크린샷 */
   async capture(pngPath: string): Promise<void> {
     if (!this.win) return
@@ -303,6 +319,8 @@ export class PreviewWindow {
       backgroundColor: nativeTheme.shouldUseDarkColors ? '#202020' : '#f3f3f3',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
+        // 화면 밖 시험 모드에서는 가려진 창으로 보고 렌더를 멈추지 않게 한다(index.ts 가 CalculateNativeWinOcclusion 도 끈다)
+        backgroundThrottling: !this.offscreen,
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
@@ -376,11 +394,16 @@ export class PreviewWindow {
     return { win, loaded }
   }
 
+  /** 이미 떠 있는 창의 크기를 바꿀 때 쓸 작업 영역. 화면 밖 시험 모드에서는 창이 어느 모니터에도 없으므로 주 모니터. */
+  private currentArea(win: BrowserWindow): Electron.Rectangle {
+    return this.offscreen ? screen.getPrimaryDisplay().workArea : windowWorkArea(win)
+  }
+
   /**
    * 창을 내용 비율에 맞춘다. 창이 있는 모니터 작업 영역의 85% 안에 들어가게 줄이고,
    * grow 가 아니면 원래 크기보다 키우지 않는다. 너무 작으면 최소 크기까지 늘린다(이때는 비율이 달라진다).
    */
-  private fit(win: BrowserWindow, size: ContentSize, area = windowWorkArea(win)): void {
+  private fit(win: BrowserWindow, size: ContentSize, area = this.currentArea(win)): void {
     const maxW = Math.floor(area.width * MAX_AREA_RATIO) - CHROME_W
     const maxH = Math.floor(area.height * MAX_AREA_RATIO) - CHROME_H
     let scale = Math.min(maxW / size.width, maxH / size.height)
@@ -391,7 +414,7 @@ export class PreviewWindow {
   }
 
   /** 작업 영역(기본: 창이 있는 모니터) 중앙, 작업 영역의 70% 크기(최대 1280×900) */
-  private position(win: BrowserWindow, area = windowWorkArea(win)): void {
+  private position(win: BrowserWindow, area = this.currentArea(win)): void {
     const width = Math.min(Math.round(area.width * 0.7), 1280)
     const height = Math.min(Math.round(area.height * 0.7), 900)
     this.place(win, area, width, height)
@@ -401,6 +424,12 @@ export class PreviewWindow {
    * 작업 영역 중앙에 놓는다. 사용자가 창을 옮겼으면 지금 창의 중심을 유지하되 작업 영역 밖으로 나가지 않게 한다.
    */
   private place(win: BrowserWindow, area: Electron.Rectangle, width: number, height: number): void {
+    if (this.offscreen) {
+      // 화면 밖 위치는 여기 한 곳에서 정한다(처음 표시·fit 모두 창을 화면 안으로 끌어오지 않게)
+      const { x, y } = offscreenOrigin(screen.getAllDisplays().map((d) => d.bounds), width)
+      win.setBounds({ x, y, width, height })
+      return
+    }
     let x = Math.round(area.x + (area.width - width) / 2)
     let y = Math.round(area.y + (area.height - height) / 2)
     if (this.userMoved) {
@@ -468,6 +497,9 @@ export class PreviewWindow {
       const t0 = this.pendingT0.get(seq)
       if (t0 !== undefined) log.info(`rendered seq=${seq} in ${(performance.now() - t0).toFixed(0)}ms since key`)
       for (const k of this.pendingT0.keys()) if (k <= seq) this.pendingT0.delete(k)
+      const waiters = this.renderedWaiters
+      this.renderedWaiters = []
+      for (const resolve of waiters) resolve()
     })
   }
 }

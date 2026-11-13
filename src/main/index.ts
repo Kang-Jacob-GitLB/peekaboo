@@ -16,6 +16,12 @@ process.on('unhandledRejection', (err) => log.error('unhandled rejection', err))
 
 registerPeekScheme()
 
+// 개발 전용 화면 밖 시험 모드: PEEKABOO_PREVIEW=<파일> PEEKABOO_OFFSCREEN=1 [PEEKABOO_CAPTURE=<png>]
+// 창을 모든 모니터 밖에 두고(포커스도 가져가지 않는다), 헬퍼·트레이도 띄우지 않으며, 캡처가 끝나면 종료한다.
+// Chromium 이 화면 밖 창을 가려진 것으로 보고 렌더를 멈추지 않도록 occlusion 계산을 끈다(appendSwitch 는 ready 전에 해야 한다).
+const offscreen = !app.isPackaged && !!process.env['PEEKABOO_PREVIEW'] && process.env['PEEKABOO_OFFSCREEN'] === '1'
+if (offscreen) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -39,17 +45,21 @@ function start(): void {
     () => getSettings().keepWarmSeconds,
     native,
     (selected) => helper.send({ v: 1, type: 'textSelection', selected }),
-    () => closePreview()
+    () => closePreview(),
+    offscreen
   )
   handlePeekProtocol((path) => preview.isAllowedPath(path))
   blockRemoteFileRequests((path) => preview.isAllowedPath(path))
 
-  const updater = new Updater(() => tray.refreshUpdate())
-  const tray = new AppTray((enabled) => {
-    helper.send({ v: 1, type: 'config', enabled, hostPid: process.pid })
-    if (!enabled) closePreview()
-  }, updater)
-  helper.on('status', (s) => tray.setStatus(s))
+  const updater = new Updater(() => tray?.refreshUpdate())
+  // 화면 밖 시험 모드에서는 트레이 아이콘도 만들지 않는다
+  const tray = offscreen
+    ? null
+    : new AppTray((enabled) => {
+        helper.send({ v: 1, type: 'config', enabled, hostPid: process.pid })
+        if (!enabled) closePreview()
+      }, updater)
+  helper.on('status', (s) => tray?.setStatus(s))
   updater.start()
 
   let nextRequestId = 1
@@ -120,7 +130,8 @@ function start(): void {
     }
   })
 
-  helper.start()
+  // 화면 밖 시험 모드는 키보드 훅(헬퍼)을 띄우지 않는다: 설치된 Peekaboo 의 훅과 같은 Space 를 두고 다투지 않게
+  if (!offscreen) helper.start()
   // 첫 Space 에서 렌더러 기동을 기다리지 않도록 창을 미리 로드해 둔다
   preview.prewarm()
 
@@ -130,7 +141,23 @@ function start(): void {
   if (!app.isPackaged && devPreview) {
     showSelection([devPreview], devPreview, performance.now())
     const capture = process.env['PEEKABOO_CAPTURE']
-    if (capture) setTimeout(() => void preview.capture(capture), 2500)
+    if (capture) {
+      // 일반 모드는 고정 시간 뒤에 찍는다. 화면 밖 모드는 렌더러 로드가 느릴 수 있어 렌더 완료 신호를 기다린 뒤 잠시 두고 찍는다.
+      const settled = offscreen
+        ? preview.whenRendered().then(() => new Promise<void>((resolve) => setTimeout(resolve, 600)))
+        : new Promise<void>((resolve) => setTimeout(resolve, 2500))
+      void settled.then(() => {
+        void preview.capture(capture).then(
+          () => offscreen && app.exit(0),
+          (e) => {
+            log.error('capture failed', e)
+            if (offscreen) app.exit(1)
+          }
+        )
+      })
+      // 화면 밖 시험 모드의 캡처는 어떤 경우에도 오래 남아 있지 않게 한다
+      if (offscreen) setTimeout(() => app.exit(1), 60_000).unref()
+    }
   }
 
   app.on('before-quit', () => {
