@@ -1,0 +1,33 @@
+[package]
+name = "peekaboo-spike"
+version = "0.0.0"
+edition = "2021"
+description = "Peekaboo Tauri 전환 M0 스파이크: 포커스를 뺏지 않는 show/hide 시험, 네이티브 미리보기 핸들러 겹치기 시험"
+license = "GPL-3.0-only"
+publish = false
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+# cargo build 만으로 frontendDist 를 바이너리에 싣는다(tauri build 가 켜 주는 feature 와 동일)
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# tao 0.37.2 / tauri 2.12.5 가 쓰는 windows 0.62 와 같은 버전이어야 Window::hwnd() 의 HWND 타입이 맞는다
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+]
+
+# native 모드: 캡처 PNG 인코딩
+[target.'cfg(windows)'.dependencies.png]
+version = "0.17"
