@@ -28,3 +28,7 @@ Desktop.ini
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
