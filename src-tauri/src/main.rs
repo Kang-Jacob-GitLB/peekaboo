@@ -7,6 +7,7 @@
 compile_error!("이 스파이크는 Windows 전용이다");
 
 mod native;
+mod peek;
 
 use std::fs::File;
 use std::io::Write;
@@ -236,6 +237,9 @@ fn run_test(app: AppHandle, window: WebviewWindow) {
 
 fn main() {
     tauri::Builder::default()
+        // peek 프로토콜: 허용 상태가 비어 있어 스파이크에서는 모든 요청이 403 이다.
+        .manage(peek::AllowState::default())
+        .register_asynchronous_uri_scheme_protocol("peek", peek::handle)
         .setup(|app| {
             // setup 은 동기 커맨드·이벤트 핸들러가 아니라 앱 초기화 단계라 창 생성이 안전하다.
             // (교착 경고는 동기 커맨드/이벤트 핸들러 한정 — WebviewWindowBuilder::new 문서)
