@@ -36,7 +36,9 @@ internal sealed class HelperCore : IDisposable
     private volatile bool _enabled = true;
     private volatile bool _previewOpen;
     private volatile bool _textSelected; // 미리보기 창에 텍스트가 선택돼 있음 → Ctrl+C 를 가로챈다
-    private volatile uint _hostPid;      // 미리보기 창을 띄우는 호스트(Electron) 프로세스. 0 = 모름(콘솔 모드)
+    // 미리보기 창을 띄우는 호스트 프로세스들(Electron: 앱 PID 하나, Tauri: 앱 + WebView2 브라우저 PID). 비어 있으면 모름(콘솔 모드).
+    // 훅 스레드가 읽으므로 불변 배열을 통째로 교체한다(할당·잠금 없이 읽기).
+    private volatile uint[] _hostPids = [];
     private volatile FileViewTarget? _lastTarget;
     private SelectionResult? _lastSent; // STA 전용
     private bool _refreshPending;       // STA 전용
@@ -66,7 +68,14 @@ internal sealed class HelperCore : IDisposable
 
     public void SetTextSelected(bool selected) => _textSelected = selected;
 
-    public void SetHostPid(uint pid) => _hostPid = pid;
+    /// <summary>hostPid 와 hostPids 를 합친다. 어느 쪽이든 하나라도 포그라운드면 호스트 창이 포그라운드인 것으로 본다.</summary>
+    public void SetHost(uint hostPid, uint[] hostPids)
+    {
+        var all = new List<uint>(hostPids.Length + 1);
+        if (hostPid != 0) all.Add(hostPid);
+        foreach (var p in hostPids) if (!all.Contains(p)) all.Add(p);
+        _hostPids = [.. all];
+    }
 
     public void SetPreviewOpen(bool open)
     {
@@ -140,7 +149,7 @@ internal sealed class HelperCore : IDisposable
         // Ctrl+C 는 미리보기에 텍스트가 선택돼 있을 때만 가로챈다. 아니면 탐색기의 파일 복사로 통과시킨다.
         if (key.Value == KeyName.Copy && !(open && _textSelected)) return false;
         var target = FocusInspector.GetFileViewTarget();
-        if (target is null && open && _hostPid != 0 && FocusInspector.IsProcessForeground(_hostPid))
+        if (target is null && open && FocusInspector.IsAnyProcessForeground(_hostPids))
         {
             // 다른 앱에 있다가 미리보기 창을 클릭해 포커스를 준 상태. 탐색기 대신 여기서 Space/Esc(닫기)·Ctrl+C 를 받는다.
             // (네이티브 미리보기 핸들러의 자식 창에 포커스가 있어도 최상위 창은 호스트 것이다)

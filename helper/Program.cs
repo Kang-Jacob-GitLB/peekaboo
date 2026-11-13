@@ -87,12 +87,12 @@ internal static class Program
 
             switch (cmd)
             {
-                case HostCommand.Config c: core.SetEnabled(c.Enabled); core.SetHostPid(c.HostPid); break;
+                case HostCommand.Config c: core.SetEnabled(c.Enabled); core.SetHost(c.HostPid, c.HostPids); break;
                 case HostCommand.State s: core.SetPreviewOpen(s.PreviewOpen); break;
                 case HostCommand.TextSelection t: core.SetTextSelected(t.Selected); break;
                 case HostCommand.GetSelection g: core.RequestSelection(g.Id); break;
                 case HostCommand.Ping p: core.Ping(() => Outgoing.Pong(channel, p.Id)); break;
-                case HostCommand.NativePreviewOpen o: nativePreview.Open(o.Id, o.Path, o.Hwnd, o.Rect, o.Dark); break;
+                case HostCommand.NativePreviewOpen o: nativePreview.Open(o.Id, o.Path, o.Hwnd, o.Rect, o.Dark, o.Raise); break;
                 case HostCommand.NativePreviewResize r: nativePreview.Resize(r.Id, r.Rect); break;
                 case HostCommand.NativePreviewClose c: nativePreview.Close(c.Id); break;
                 case HostCommand.Shutdown: return 0;

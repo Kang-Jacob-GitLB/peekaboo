@@ -111,7 +111,8 @@ internal static class Outgoing
 internal abstract record HostCommand
 {
     /// <param name="HostPid">미리보기 창을 띄우는 호스트 프로세스(없으면 0)</param>
-    public sealed record Config(bool Enabled, uint HostPid) : HostCommand;
+    /// <param name="HostPids">호스트의 창을 소유할 수 있는 프로세스 전체(호스트 + WebView2 브라우저 프로세스 등). 없으면 빈 배열</param>
+    public sealed record Config(bool Enabled, uint HostPid, uint[] HostPids) : HostCommand;
     public sealed record State(bool PreviewOpen) : HostCommand;
     public sealed record TextSelection(bool Selected) : HostCommand;
     public sealed record GetSelection(int Id) : HostCommand;
@@ -119,7 +120,7 @@ internal abstract record HostCommand
     public sealed record Shutdown : HostCommand;
     public sealed record Unknown(string Type) : HostCommand;
     /// <param name="Rect">미리보기 창 클라이언트 영역 기준 물리 픽셀</param>
-    public sealed record NativePreviewOpen(int Id, string Path, nint Hwnd, RECT Rect, bool Dark) : HostCommand;
+    public sealed record NativePreviewOpen(int Id, string Path, nint Hwnd, RECT Rect, bool Dark, bool Raise = false) : HostCommand;
     public sealed record NativePreviewResize(int Id, RECT Rect) : HostCommand;
     public sealed record NativePreviewClose(int Id) : HostCommand;
 
@@ -135,7 +136,8 @@ internal abstract record HostCommand
             {
                 "config" => new Config(
                     root.GetProperty("enabled").GetBoolean(),
-                    root.TryGetProperty("hostPid", out var hp) && hp.TryGetUInt32(out var pid) ? pid : 0),
+                    root.TryGetProperty("hostPid", out var hp) && hp.TryGetUInt32(out var pid) ? pid : 0,
+                    ParsePids(root)),
                 "state" => new State(root.GetProperty("previewOpen").GetBoolean()),
                 "textSelection" => new TextSelection(root.GetProperty("selected").GetBoolean()),
                 "getSelection" => new GetSelection(root.GetProperty("id").GetInt32()),
@@ -146,7 +148,8 @@ internal abstract record HostCommand
                     root.GetProperty("path").GetString() ?? throw new FormatException("path is null"),
                     (nint)root.GetProperty("hwnd").GetInt64(),
                     ParseRect(root.GetProperty("rect")),
-                    root.GetProperty("dark").GetBoolean()),
+                    root.GetProperty("dark").GetBoolean(),
+                    root.TryGetProperty("raise", out var raise) && raise.ValueKind == JsonValueKind.True),
                 "nativePreview.resize" => new NativePreviewResize(root.GetProperty("id").GetInt32(), ParseRect(root.GetProperty("rect"))),
                 "nativePreview.close" => new NativePreviewClose(root.GetProperty("id").GetInt32()),
                 _ => new Unknown(type),
@@ -156,6 +159,16 @@ internal abstract record HostCommand
         {
             throw new FormatException(e.Message, e);
         }
+    }
+
+    /// <summary>hostPids 배열. 없거나 배열이 아니면 빈 배열, 숫자가 아닌 원소는 건너뛴다(전방 호환).</summary>
+    private static uint[] ParsePids(JsonElement root)
+    {
+        if (!root.TryGetProperty("hostPids", out var arr) || arr.ValueKind != JsonValueKind.Array) return [];
+        var list = new List<uint>();
+        foreach (var e in arr.EnumerateArray())
+            if (e.ValueKind == JsonValueKind.Number && e.TryGetUInt32(out var pid) && pid != 0) list.Add(pid);
+        return [.. list];
     }
 
     /// <summary>{x, y, width, height} → RECT(left, top, right, bottom). 소수는 반올림.</summary>

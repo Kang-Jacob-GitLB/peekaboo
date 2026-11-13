@@ -81,6 +81,7 @@ RegisterClassEx
 CreateWindowEx
 DestroyWindow
 SetWindowPos
+HWND_TOP
 DefWindowProc
 GetClientRect
 FillRect

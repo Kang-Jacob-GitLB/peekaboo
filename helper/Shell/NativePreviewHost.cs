@@ -13,7 +13,7 @@ internal enum NativePreviewStatus { Shown, Unavailable, Failed }
 
 /// <summary>
 /// Windows 에 등록된 미리보기 핸들러(IPreviewHandler)를 호스팅한다. 탐색기 미리 보기 창과 같은 방식.
-/// - 핸들러 창은 미리보기 창(Electron, 다른 프로세스) HWND 의 자식으로 붙는다.
+/// - 핸들러 창은 미리보기 창(Electron·Tauri, 다른 프로세스) HWND 의 자식으로 붙는다.
 /// - 핸들러는 항상 별도 프로세스(prevhost.exe 등)에서 돈다(문서: "Preview handlers always run out of process").
 ///   그래서 CLSCTX_LOCAL_SERVER 로만 만들고, 헬퍼 안에 in-proc 로 로드하지 않는다.
 /// - DoPreview 가 수 초 걸릴 수 있어 선택 조회와 다른 전용 STA 스레드에서 처리한다.
@@ -41,6 +41,7 @@ internal sealed class NativePreviewHost : IDisposable
     private IPreviewHandler? _handler;
     private IStream? _stream; // 핸들러 수명 동안 열려 있어야 한다(IInitializeWithStream 문서)
     private HWND _container;
+    private bool _raise;     // 현재 컨테이너를 만들 때 받은 raise 요청. resize 에도 적용한다.
     private HBRUSH _background;
     private WNDPROC? _wndProc; // GC 수거 방지
     private const string ContainerClass = "PeekabooPreviewContainer";
@@ -65,14 +66,14 @@ internal sealed class NativePreviewHost : IDisposable
         });
     }
 
-    public void Open(int id, string path, nint parent, RECT rect, bool dark)
+    public void Open(int id, string path, nint parent, RECT rect, bool dark, bool raise = false)
     {
         _latestId = id;
         _sta.Post(() =>
         {
             Unload();
             if (id != _latestId) return; // 더 새 요청이 있음 — 응답은 호스트가 버린다
-            var (status, message) = Show(id, path, (HWND)parent, rect, dark);
+            var (status, message) = Show(id, path, (HWND)parent, rect, dark, raise);
             _reply(id, status, message);
         });
     }
@@ -84,6 +85,7 @@ internal sealed class NativePreviewHost : IDisposable
         {
             PInvoke.SetWindowPos(_container, HWND.Null, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
                 SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+            if (_raise) RaiseToTop(_container);
             var inner = Origin(rect);
             _handler.SetRect(in inner);
         }
@@ -100,7 +102,7 @@ internal sealed class NativePreviewHost : IDisposable
         });
     }
 
-    private (NativePreviewStatus, string?) Show(int id, string path, HWND parent, RECT rect, bool dark)
+    private (NativePreviewStatus, string?) Show(int id, string path, HWND parent, RECT rect, bool dark, bool raise)
     {
         if (!PInvoke.IsWindow(parent)) return (NativePreviewStatus.Failed, "parent window is gone");
 
@@ -115,6 +117,8 @@ internal sealed class NativePreviewHost : IDisposable
             Initialize(handler, path);
             if (handler is IPreviewHandlerVisuals visuals) ApplyTheme(visuals, dark);
             _container = CreateContainer(parent, rect, dark);
+            _raise = raise;
+            if (raise) RaiseToTop(_container);
             var inner = Origin(rect);
             handler.SetWindow(_container, in inner);
             handler.DoPreview();
@@ -276,6 +280,20 @@ internal sealed class NativePreviewHost : IDisposable
             PInvoke.DeleteObject(_background);
             _background = HBRUSH.Null;
         }
+    }
+
+    /// <summary>
+    /// 컨테이너를 부모의 자식 중 맨 위로 올린다. `nativePreview.open` 의 `raise` 가 true 일 때만 부른다.
+    /// Tauri(wry)는 최상위 창 아래 WebView2 자식 창(WS_CLIPSIBLINGS 없음)을 두는데, 새로 만든 컨테이너는 그 아래에 깔려
+    /// 웹뷰가 다시 그릴 때 덮인다(docs/tauri-migration.md 3.1절 A안). Electron 은 이 동작을 켜지 않는다 — 실측으로
+    /// Z 순서가 달라짐을 확인했고(기존에는 컨테이너가 Chromium 자식 아래), 기존 배치를 바꾸지 않기 위해서다.
+    /// 위치·크기·활성화는 건드리지 않는다.
+    /// </summary>
+    private void RaiseToTop(HWND container)
+    {
+        if (!PInvoke.SetWindowPos(container, HWND.HWND_TOP, 0, 0, 0, 0,
+                SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE))
+            Log.Warn("preview container RaiseToTop failed");
     }
 
     private static RECT Origin(RECT r) => new() { left = 0, top = 0, right = r.right - r.left, bottom = r.bottom - r.top };

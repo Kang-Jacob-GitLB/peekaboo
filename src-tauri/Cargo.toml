@@ -10,9 +10,15 @@ publish = false
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 헬퍼 프로세스 감시(tokio::process). 런타임은 tauri::async_runtime 이 이미 돌리고 있는 것을 쓴다.
+tokio = { version = "1", features = ["process", "io-util", "time", "sync", "rt", "macros"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+# 멈춘 시계로 ping 타이머를 시험한다(tokio::time::advance)
+tokio = { version = "1", features = ["test-util"] }
 
 [features]
 # cargo build 만으로 frontendDist 를 바이너리에 싣는다(tauri build 가 켜 주는 feature 와 동일)

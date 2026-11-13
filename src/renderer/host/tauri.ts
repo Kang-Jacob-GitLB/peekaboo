@@ -58,11 +58,14 @@ export function createTauriHost(): Host {
     rendered: (seq) => send('rendered', { seq }),
     fit: (seq, size: ContentSize | null) => send('fit', { seq, size }),
     nativePreview: {
-      // 헬퍼 연결과 네이티브 핸들러 창은 M3 에서 구현한다. 'failed' 로 답해 플러그인이 자체 렌더러로 대체하게 한다.
-      open: (): Promise<NativePreviewResult> =>
-        Promise.resolve({ handle: 0, status: 'failed', message: 'Tauri 호스트는 아직 Windows 미리보기를 지원하지 않습니다' }),
-      resize: () => {},
-      close: () => {}
+      // Rust 가 헬퍼에 중계한다. 커맨드 자체가 실패하면(허용되지 않은 경로 등) 'failed' 로 답해 플러그인이 자체 렌더러로 대체하게 한다.
+      open: (path, rect): Promise<NativePreviewResult> =>
+        invoke<NativePreviewResult>('native_open', { path, rect }).catch((e) => {
+          fail('native_open', e)
+          return { handle: 0, status: 'failed', message: String(e) } satisfies NativePreviewResult
+        }),
+      resize: (handle, rect) => send('native_resize', { handle, rect }),
+      close: (handle) => send('native_close', { handle })
     }
   }
 
