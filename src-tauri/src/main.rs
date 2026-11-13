@@ -1,9 +1,12 @@
 // M0 스파이크 판정 1번: 프레임 없는 항상-위 창을 show → hide → show 반복해도
 // 포그라운드 창(포커스)을 뺏지 않는지 확인한다. 렌더러·peek 프로토콜·헬퍼는 붙이지 않는다.
+// 판정 4번(PEEKABOO_SPIKE_MODE=native): 헬퍼의 미리보기 핸들러 창이 WebView2 위에 겹치는지는 native.rs.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(not(windows))]
 compile_error!("이 스파이크는 Windows 전용이다");
+
+mod native;
 
 use std::fs::File;
 use std::io::Write;
@@ -30,12 +33,14 @@ const LOOPS: u32 = 5;
 enum Mode {
     Tao,
     Hwnd,
+    Native,
 }
 
 impl Mode {
     fn from_env() -> Self {
         match std::env::var("PEEKABOO_SPIKE_MODE").as_deref() {
             Ok("hwnd") => Mode::Hwnd,
+            Ok("native") => Mode::Native,
             _ => Mode::Tao,
         }
     }
@@ -44,12 +49,13 @@ impl Mode {
         match self {
             Mode::Tao => "tao",
             Mode::Hwnd => "hwnd",
+            Mode::Native => "native",
         }
     }
 }
 
 /// stdout 과 파일에 같은 줄을 남긴다.
-struct Log(Mutex<Option<File>>);
+pub(crate) struct Log(Mutex<Option<File>>);
 
 impl Log {
     fn open() -> Self {
@@ -59,7 +65,7 @@ impl Log {
         Log(Mutex::new(File::create(path).ok()))
     }
 
-    fn line(&self, msg: &str) {
+    pub(crate) fn line(&self, msg: &str) {
         println!("{msg}");
         if let Some(f) = self.0.lock().unwrap().as_mut() {
             let _ = writeln!(f, "{msg}");
@@ -67,13 +73,13 @@ impl Log {
     }
 }
 
-struct Foreground {
-    hwnd: isize,
-    pid: u32,
-    title: String,
+pub(crate) struct Foreground {
+    pub(crate) hwnd: isize,
+    pub(crate) pid: u32,
+    pub(crate) title: String,
 }
 
-fn foreground() -> Foreground {
+pub(crate) fn foreground() -> Foreground {
     unsafe {
         let hwnd = GetForegroundWindow();
         let mut pid = 0u32;
@@ -155,6 +161,7 @@ fn show(app: &AppHandle, window: &WebviewWindow, mode: Mode, hwnd: isize) {
         Mode::Tao => {
             let _ = window.show();
         }
+        Mode::Native => {}
         Mode::Hwnd => on_main(app, move || unsafe {
             let _ = SetWindowPos(
                 HWND(hwnd as _),
@@ -174,6 +181,7 @@ fn hide(app: &AppHandle, window: &WebviewWindow, mode: Mode, hwnd: isize) {
         Mode::Tao => {
             let _ = window.hide();
         }
+        Mode::Native => {}
         Mode::Hwnd => on_main(app, move || unsafe {
             let _ = ShowWindow(HWND(hwnd as _), SW_HIDE);
         }),
@@ -186,6 +194,10 @@ fn run_test(app: AppHandle, window: WebviewWindow) {
     let our_pid = std::process::id();
     let our_hwnd = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
     log.line(&format!("START mode={} loops={LOOPS} our_pid={our_pid}", mode.name()));
+    if mode == Mode::Native {
+        native::run(&app, &window, &log, our_hwnd);
+        return;
+    }
 
     // 웹뷰 로드 대기
     sleep(Duration::from_secs(2));
@@ -227,11 +239,10 @@ fn main() {
         .setup(|app| {
             // setup 은 동기 커맨드·이벤트 핸들러가 아니라 앱 초기화 단계라 창 생성이 안전하다.
             // (교착 경고는 동기 커맨드/이벤트 핸들러 한정 — WebviewWindowBuilder::new 문서)
-            let window = WebviewWindowBuilder::new(
-                app,
-                "preview",
-                WebviewUrl::App("index.html".into()),
-            )
+            let native = Mode::from_env() == Mode::Native;
+            let url = if native { "index.html?native" } else { "index.html" };
+            let (width, height) = if native { (900.0, 640.0) } else { (640.0, 420.0) };
+            let window = WebviewWindowBuilder::new(app, "preview", WebviewUrl::App(url.into()))
             .title("PeekabooSpike")
             .decorations(false)
             .always_on_top(true)
@@ -240,7 +251,7 @@ fn main() {
             .visible(false)
             .shadow(false)
             .resizable(false)
-            .inner_size(640.0, 420.0)
+            .inner_size(width, height)
             .position(200.0, 200.0)
             .data_directory(std::env::temp_dir().join("peekaboo-spike-webview"))
             .build()?;

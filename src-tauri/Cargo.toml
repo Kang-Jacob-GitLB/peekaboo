@@ -2,7 +2,7 @@
 name = "peekaboo-spike"
 version = "0.0.0"
 edition = "2021"
-description = "Peekaboo Tauri 전환 M0 스파이크: 포커스를 뺏지 않는 show/hide 시험"
+description = "Peekaboo Tauri 전환 M0 스파이크: 포커스를 뺏지 않는 show/hide 시험, 네이티브 미리보기 핸들러 겹치기 시험"
 license = "GPL-3.0-only"
 publish = false
 
@@ -22,5 +22,12 @@ custom-protocol = ["tauri/custom-protocol"]
 version = "0.62"
 features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
 ]
+
+# native 모드: 캡처 PNG 인코딩
+[target.'cfg(windows)'.dependencies.png]
+version = "0.17"
