@@ -29,6 +29,10 @@ export function create(): PreviewPlugin {
       media = el
       el.controls = true
       el.preload = 'metadata'
+      // peek: 는 비표준 스킴이라 응답 URL 마다 새 불투명 출처가 된다. crossorigin 없이(no-cors) 두면 Chromium 미디어가
+      // 두 번째 Range 응답부터 첫 응답과 출처가 다르다고 보고 데이터 소스를 실패시킨다(moov 가 끝인 MP4, Cues 가 끝인 WebM 탐색 등).
+      // CORS 모드에서는 그 비교를 하지 않는다. peek 응답은 Access-Control-Allow-Origin: * 를 붙인다(peek-response.ts, src-tauri peek.rs).
+      el.crossOrigin = 'anonymous'
       el.loop = false
       if (el instanceof HTMLVideoElement) el.disablePictureInPicture = true
 
