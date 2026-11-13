@@ -1,0 +1,155 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "긴/경로/pax-이름.txt",
+    "isDirectory": false,
+    "size": 700,
+    "compressedSize": 700,
+    "mtimeMs": 1700000000500,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 700,
+  "compressedSize": 700,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "긴/경로/pax-이름.txt",
+    "isDirectory": false,
+    "size": 700,
+    "compressedSize": 700,
+    "mtimeMs": 1700000000500,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "bad-size-1e3.txt",
+    "isDirectory": false,
+    "size": 300,
+    "compressedSize": 300,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 1000,
+  "compressedSize": 1000,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "긴/경로/pax-이름.txt",
+    "isDirectory": false,
+    "size": 700,
+    "compressedSize": 700,
+    "mtimeMs": 1700000000500,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "bad-size-1e3.txt",
+    "isDirectory": false,
+    "size": 300,
+    "compressedSize": 300,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "bad-size-hex.txt",
+    "isDirectory": false,
+    "size": 100,
+    "compressedSize": 100,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 1100,
+  "compressedSize": 1100,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "긴/경로/pax-이름.txt",
+    "isDirectory": false,
+    "size": 700,
+    "compressedSize": 700,
+    "mtimeMs": 1700000000500,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "bad-size-1e3.txt",
+    "isDirectory": false,
+    "size": 300,
+    "compressedSize": 300,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "bad-size-hex.txt",
+    "isDirectory": false,
+    "size": 100,
+    "compressedSize": 100,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "after-global.txt",
+    "isDirectory": false,
+    "size": 5,
+    "compressedSize": 5,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "loose-header-name.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 5,
+  "totalIsLowerBound": false,
+  "truncated": false,
+  "scanLimited": false,
+  "totalSize": 1106,
+  "compressedSize": 1106,
+  "encrypted": false
+ }
+}

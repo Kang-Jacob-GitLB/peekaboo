@@ -15,6 +15,8 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
   `peek://` 프로토콜과 요청 차단(`protocol.ts`), 트레이, 자동 업데이트(`updater.ts`).
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 을 구현한 모듈 하나 + `registry.ts` 한 줄로 새 포맷을 추가한다.
   `registry.ts` 의 순서가 곧 우선순위다.
+- `src/renderer/host/` — 렌더러 ↔ 호스트 어댑터(`createHost()`). 플러그인은 `window.peekaboo` 대신 `ctx.host` 를 쓴다.
+  텍스트 디코딩·압축 목록 해석은 `file-ops/` 가 `peek://` Range 요청으로 읽어 렌더러에서 한다(main 에 파서를 두지 않는다).
 
 ## 규칙
 
@@ -29,7 +31,7 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
 ## 보안 경계 (미리보기 대상 파일은 신뢰하지 않는다)
 
 - 렌더러는 `sandbox`·`contextIsolation`, CSP 는 `src/renderer/index.html`. 창 이동·새 창은 main 이 막는다.
-- `peek://`·`readText` 등은 **현재 미리보기 중인 경로 하나만** 허용한다(`isAllowedPath`, 정확히 일치).
+- `peek://`·`listDir` 등은 **현재 미리보기 중인 경로 하나만** 허용한다(`isAllowedPath`, 정확히 일치).
 - HTML 미리보기는 `allow-scripts` 없는 sandbox iframe. 서브프레임 이동은 `will-frame-navigate`, UNC(`file://호스트/`) 요청은 `blockRemoteFileRequests` 가 막는다.
 - Markdown·docx 의 HTML 은 DOMPurify 로 정화한다. 이 경계를 넓히는 변경은 보안 리뷰를 거친다.
 
@@ -50,7 +52,7 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
 
 ## 확인 방법
 
-- 기본 검증: `npm run typecheck` → `npm run build`(헬퍼를 고쳤으면 `npm run helper:build`).
+- 기본 검증: `npm run typecheck` → `npm test` → `npm run build`(헬퍼를 고쳤으면 `npm run helper:build`).
 - 미리보기 화면 확인은 키 입력 없이 한다: `npm run build` 후
   `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> electron .` 로 **미리보기 창만** 캡처한다. 전체 화면 스크린샷은 찍지 않는다.
   설치된 Peekaboo 가 실행 중이면 `--user-data-dir=<임시 폴더>` 를 붙여 단일 인스턴스 잠금을 피한다.

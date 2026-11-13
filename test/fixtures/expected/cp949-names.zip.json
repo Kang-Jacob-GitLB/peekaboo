@@ -1,0 +1,127 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 3,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "한글.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "한글.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "ab.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "한글.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "ab.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "plain-utf8-한.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "truncated": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "한글.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "ab.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "plain-utf8-한.txt",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "truncated": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ }
+}

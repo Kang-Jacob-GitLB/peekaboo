@@ -1,0 +1,640 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 60,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "f/000.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 60,
+  "truncated": true,
+  "totalSize": 1,
+  "compressedSize": 1,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "f/000.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/001.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 60,
+  "truncated": true,
+  "totalSize": 2,
+  "compressedSize": 2,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "f/000.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/001.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/002.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 60,
+  "truncated": true,
+  "totalSize": 3,
+  "compressedSize": 3,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "f/000.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/001.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/002.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/003.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/004.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/005.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/006.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/007.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/008.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/009.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/010.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/011.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/012.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/013.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/014.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/015.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/016.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/017.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/018.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/019.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/020.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/021.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/022.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/023.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/024.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/025.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/026.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/027.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/028.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/029.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/030.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/031.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/032.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/033.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/034.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/035.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/036.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/037.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/038.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/039.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/040.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/041.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/042.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/043.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/044.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/045.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/046.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/047.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/048.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/049.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/050.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/051.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/052.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/053.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/054.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/055.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/056.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/057.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/058.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "f/059.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 60,
+  "truncated": false,
+  "totalSize": 60,
+  "compressedSize": 60,
+  "encrypted": false
+ }
+}

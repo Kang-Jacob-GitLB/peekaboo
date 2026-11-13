@@ -1,4 +1,5 @@
 // main <-> renderer(미리보기 창) 계약. preload 가 window.peekaboo 로 노출한다.
+// 파일 해석(readText·listArchive)은 main 이 아니라 렌더러(host/file-ops)가 peek:// Range 요청으로 직접 한다.
 
 import type { NativePreviewStatus, PixelRect } from './ipc-types'
 
@@ -98,12 +99,8 @@ export interface PeekabooApi {
   textSelected(selected: boolean): void
   /** Ctrl+C 를 눌렀을 때 main 이 선택한 텍스트를 묻는다. 돌려준 문자열을 main 이 클립보드에 쓴다. */
   onCopyRequest(cb: () => string): void
-  /** 현재 표시 중인 파일만 읽을 수 있다(main 이 검증). */
-  readText(path: string, maxBytes: number): Promise<TextResult>
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */
   listDir(path: string, max: number): Promise<{ entries: DirEntry[]; truncated: boolean }>
-  /** 현재 표시 중인 zip 계열 압축 파일의 항목 목록(압축 해제 없이 중앙 디렉터리만 읽는다) */
-  listArchive(path: string, max: number): Promise<ArchiveListing>
   /** <img>/<video> 등에 쓸 수 있는 peek:// URL. 현재 표시 중인 파일만 서빙된다. */
   fileUrl(path: string): string
   /** 렌더 완료 신호(첫 표시 지연 측정용) */

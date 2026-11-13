@@ -1,0 +1,52 @@
+{
+ "0": {
+  "text": "",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "1": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-8"
+ },
+ "2": {
+  "text": "",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "3": {
+  "text": "�",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "4": {
+  "text": "한",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "5": {
+  "text": "한�",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "7": {
+  "text": "한글�",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "8": {
+  "text": "한글 ",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "16": {
+  "text": "한글 텍스트 ",
+  "truncated": true,
+  "encoding": "utf-16le"
+ },
+ "1000": {
+  "text": "한글 텍스트 abc\n가나다라마바사\n",
+  "truncated": false,
+  "encoding": "utf-16le"
+ }
+}

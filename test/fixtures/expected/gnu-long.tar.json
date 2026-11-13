@@ -1,0 +1,146 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.txt",
+    "isDirectory": false,
+    "size": 20,
+    "compressedSize": 20,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 20,
+  "compressedSize": 20,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.txt",
+    "isDirectory": false,
+    "size": 20,
+    "compressedSize": 20,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "sym",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 20,
+  "compressedSize": 20,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.txt",
+    "isDirectory": false,
+    "size": 20,
+    "compressedSize": 20,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "sym",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq…",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 3,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 21,
+  "compressedSize": 21,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가/nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn.txt",
+    "isDirectory": false,
+    "size": 20,
+    "compressedSize": 20,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "sym",
+    "isDirectory": false,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq…",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "some/prefix/dir/leaf.txt",
+    "isDirectory": false,
+    "size": 7,
+    "compressedSize": 7,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 4,
+  "totalIsLowerBound": false,
+  "truncated": false,
+  "scanLimited": false,
+  "totalSize": 28,
+  "compressedSize": 28,
+  "encrypted": false
+ }
+}

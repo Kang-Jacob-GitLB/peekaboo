@@ -129,6 +129,7 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 - `helper/` — Win32/COM 연동 헬퍼. 탐색기에 포커스가 있을 때 키 입력을 감지하고 선택된 파일 경로를 조회합니다.
 - `src/main/` — Electron main 프로세스. 헬퍼 감시/재시작, 트레이, 로그, 미리보기 창 관리.
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 인터페이스를 구현하고 `registry.ts` 에 등록하면 새 포맷이 추가됩니다.
+- `src/renderer/host/` — 렌더러가 호스트(Electron)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek://` Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
 
 로그는 `%APPDATA%\Peekaboo\logs\` 에 저장됩니다.
 
@@ -141,6 +142,7 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 - 다크 모드에서도 Word·Excel·PowerPoint 미리보기는 흰 배경으로 그려집니다. 배경색을 핸들러에 전달하지만(`IPreviewHandlerVisuals`) Office 핸들러가 이를 무시합니다.
 - 미리보기 창은 포커스를 가져가지 않으므로, 창 안의 스크롤은 마우스 휠로 합니다.
 - 텍스트 복사는 텍스트·코드·Markdown·HTML·간이 Word/Excel·폴더/압축 목록에서 됩니다. PDF·PowerPoint(그림으로 그림)와 Office 네이티브 미리보기 창에서는 아직 복사할 수 없습니다.
+- 여러 gzip 을 이어 붙인 `.tar.gz`(`cat a.tar.gz b.tar.gz` 처럼 만든 파일)는 첫 묶음의 항목만 보이고, gzip 스트림 뒤에 군더더기 데이터가 붙은 파일은 잘린 것으로 표시될 수 있습니다.
 - 코드 서명이 없어 SmartScreen 경고가 뜹니다(위 설치 항목 참고).
 
 ## 라이선스

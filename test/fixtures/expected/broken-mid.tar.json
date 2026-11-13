@@ -1,0 +1,92 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "ok.txt",
+    "isDirectory": false,
+    "size": 3,
+    "compressedSize": 3,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 3,
+  "compressedSize": 3,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "ok.txt",
+    "isDirectory": false,
+    "size": 3,
+    "compressedSize": 3,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 3,
+  "compressedSize": 3,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "ok.txt",
+    "isDirectory": false,
+    "size": 3,
+    "compressedSize": 3,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 3,
+  "compressedSize": 3,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "ok.txt",
+    "isDirectory": false,
+    "size": 3,
+    "compressedSize": 3,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 1,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 3,
+  "compressedSize": 3,
+  "encrypted": false
+ }
+}

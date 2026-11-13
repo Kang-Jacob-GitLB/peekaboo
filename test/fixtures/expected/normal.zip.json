@@ -1,0 +1,168 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 7,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false,
+  "comment": "압축 파일 주석"
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "docs/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 7,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false,
+  "comment": "압축 파일 주석"
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "docs/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "docs/readme.txt",
+    "isDirectory": false,
+    "size": 600,
+    "compressedSize": 21,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 8
+   }
+  ],
+  "totalEntries": 7,
+  "truncated": true,
+  "totalSize": 600,
+  "compressedSize": 21,
+  "encrypted": false,
+  "comment": "압축 파일 주석"
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "docs/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "docs/readme.txt",
+    "isDirectory": false,
+    "size": 600,
+    "compressedSize": 21,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 8
+   },
+   {
+    "path": "docs/한글.txt",
+    "isDirectory": false,
+    "size": 600,
+    "compressedSize": 21,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 8
+   }
+  ],
+  "totalEntries": 7,
+  "truncated": true,
+  "totalSize": 1200,
+  "compressedSize": 42,
+  "encrypted": false,
+  "comment": "압축 파일 주석"
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "docs/",
+    "isDirectory": true,
+    "size": 0,
+    "compressedSize": 0,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "docs/readme.txt",
+    "isDirectory": false,
+    "size": 600,
+    "compressedSize": 21,
+    "mtimeMs": 1600000000000,
+    "encrypted": false,
+    "method": 8
+   },
+   {
+    "path": "docs/한글.txt",
+    "isDirectory": false,
+    "size": 600,
+    "compressedSize": 21,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 8
+   },
+   {
+    "path": "win/path/backslash.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "secret.bin",
+    "isDirectory": false,
+    "size": 3,
+    "compressedSize": 3,
+    "mtimeMs": 1591012800000,
+    "encrypted": true,
+    "method": 0
+   },
+   {
+    "path": "old.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 0,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 7,
+  "truncated": false,
+  "totalSize": 1206,
+  "compressedSize": 48,
+  "encrypted": true,
+  "comment": "압축 파일 주석"
+ }
+}

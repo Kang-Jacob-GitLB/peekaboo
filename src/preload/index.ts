@@ -20,9 +20,7 @@ const api: PeekabooApi = {
   onCopyRequest: (cb) => {
     ipcRenderer.on(Channels.copyRequest, (_e, id: number) => ipcRenderer.send(Channels.copyText, id, cb()))
   },
-  readText: (path, maxBytes) => ipcRenderer.invoke(Channels.readText, path, maxBytes),
   listDir: (path, max) => ipcRenderer.invoke(Channels.listDir, path, max),
-  listArchive: (path, max) => ipcRenderer.invoke(Channels.listArchive, path, max),
   fileUrl: (path) => toPeekUrl(path),
   rendered: (seq) => ipcRenderer.send(Channels.rendered, seq),
   fit: (seq, size) => ipcRenderer.send(Channels.fit, seq, size),

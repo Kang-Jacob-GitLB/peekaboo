@@ -1,0 +1,109 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 2,
+  "truncated": true,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "entries": [
+   {
+    "path": "huge.bin",
+    "isDirectory": false,
+    "size": 6000000000,
+    "compressedSize": 5000000000,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "truncated": true,
+  "totalSize": 6000000000,
+  "compressedSize": 5000000000,
+  "encrypted": false
+ },
+ "2": {
+  "entries": [
+   {
+    "path": "huge.bin",
+    "isDirectory": false,
+    "size": 6000000000,
+    "compressedSize": 5000000000,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "small.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "truncated": false,
+  "totalSize": 6000000001,
+  "compressedSize": 5000000001,
+  "encrypted": false
+ },
+ "3": {
+  "entries": [
+   {
+    "path": "huge.bin",
+    "isDirectory": false,
+    "size": 6000000000,
+    "compressedSize": 5000000000,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "small.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "truncated": false,
+  "totalSize": 6000000001,
+  "compressedSize": 5000000001,
+  "encrypted": false
+ },
+ "100000": {
+  "entries": [
+   {
+    "path": "huge.bin",
+    "isDirectory": false,
+    "size": 6000000000,
+    "compressedSize": 5000000000,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   },
+   {
+    "path": "small.txt",
+    "isDirectory": false,
+    "size": 1,
+    "compressedSize": 1,
+    "mtimeMs": 1591012800000,
+    "encrypted": false,
+    "method": 0
+   }
+  ],
+  "totalEntries": 2,
+  "truncated": false,
+  "totalSize": 6000000001,
+  "compressedSize": 5000000001,
+  "encrypted": false
+ }
+}

@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Channels } from '../shared/channels'
 import type { ContentSize, ShowPayload } from '../shared/preview-api'
-import { getFileInfo, listArchive, listDirectory, readTextHead } from './file-service'
+import { getFileInfo, listDirectory } from './file-service'
 import { createLogger } from './logger'
 import type { NativePreviewBridge } from './native-preview'
 import type { PixelRect } from '../shared/ipc-types'
@@ -87,7 +87,7 @@ export class PreviewWindow {
     return this.visible || this.openingSeq !== 0
   }
 
-  /** peek:// 와 readText 가 허용하는 유일한 경로 */
+  /** peek:// 와 listDir 등이 허용하는 유일한 경로 */
   isAllowedPath(path: string): boolean {
     // 렌더러는 main 이 준 경로를 그대로 돌려준다. 대소문자 무시 비교는 JS 와 NTFS 의 대소문자 규칙이 달라
     // (예: U+212A KELVIN SIGN ↔ 'k') 같은 폴더의 다른 파일을 지정할 여지가 있으므로 정확히 일치만 허용한다.
@@ -414,17 +414,9 @@ export class PreviewWindow {
   private registerIpc(): void {
     const fromPreview = (sender: Electron.WebContents) => this.win !== null && sender === this.win.webContents
 
-    ipcMain.handle(Channels.readText, async (e, path: string, maxBytes: number) => {
-      if (!fromPreview(e.sender) || !this.isAllowedPath(path)) throw new Error('Forbidden')
-      return readTextHead(path, maxBytes)
-    })
     ipcMain.handle(Channels.listDir, async (e, path: string, max: number) => {
       if (!fromPreview(e.sender) || !this.isAllowedPath(path)) throw new Error('Forbidden')
       return listDirectory(path, max)
-    })
-    ipcMain.handle(Channels.listArchive, async (e, path: string, max: number) => {
-      if (!fromPreview(e.sender) || !this.isAllowedPath(path)) throw new Error('Forbidden')
-      return listArchive(path, max)
     })
     ipcMain.handle(Channels.nativeOpen, async (e, path: string, rect: PixelRect) => {
       if (!fromPreview(e.sender) || !this.isAllowedPath(path) || !isRect(rect)) throw new Error('Forbidden')

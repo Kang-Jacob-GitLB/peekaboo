@@ -1,0 +1,24 @@
+{
+ "0": {
+  "entries": [],
+  "totalEntries": 0,
+  "totalIsLowerBound": true,
+  "truncated": true,
+  "scanLimited": false,
+  "totalSize": 0,
+  "compressedSize": 0,
+  "encrypted": false
+ },
+ "1": {
+  "error": "손상되었거나 tar 형식이 아닌 파일입니다"
+ },
+ "2": {
+  "error": "손상되었거나 tar 형식이 아닌 파일입니다"
+ },
+ "3": {
+  "error": "손상되었거나 tar 형식이 아닌 파일입니다"
+ },
+ "100000": {
+  "error": "손상되었거나 tar 형식이 아닌 파일입니다"
+ }
+}
