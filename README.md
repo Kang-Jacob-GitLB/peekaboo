@@ -133,7 +133,7 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 
 - `helper/` — Win32/COM 연동 헬퍼. 탐색기에 포커스가 있을 때 키 입력을 감지하고 선택된 파일 경로를 조회합니다.
 - `src/main/` — Electron main 프로세스. 헬퍼 감시/재시작, 트레이, 로그, 미리보기 창 관리.
-- `src-tauri/` — Tauri 2 호스트(진행 중인 Electron 대체, [전환 계획](docs/tauri-migration.md)): 트레이·설정·시작 시 실행·로그·단일 인스턴스, NSIS 패키징. 아직 릴리스에는 쓰이지 않습니다. 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
+- `src-tauri/` — Tauri 2 호스트(진행 중인 Electron 대체, [전환 계획](docs/tauri-migration.md)): 트레이·설정·시작 시 실행·로그·단일 인스턴스, NSIS 패키징. 아직 릴리스에는 쓰이지 않습니다. 설치기 훅·업데이트 리허설 절차는 [docs/tauri-rehearsal.md](docs/tauri-rehearsal.md). 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 인터페이스를 구현하고 `registry.ts` 에 등록하면 새 포맷이 추가됩니다.
 - `src/renderer/host/` — 렌더러가 호스트(Electron)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek://` Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
 
@@ -173,7 +173,7 @@ v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부�
 | markdown-it | MIT |
 | github-markdown-css | MIT |
 | DOMPurify | Apache-2.0 / MPL-2.0 |
-| Tauri (`tauri`, `@tauri-apps/api`, `@tauri-apps/cli`, `tauri-plugin-single-instance`) | Apache-2.0 / MIT |
+| Tauri (`tauri`, `@tauri-apps/api`, `@tauri-apps/cli`, `tauri-plugin-single-instance`, `tauri-plugin-updater`, `tauri-plugin-notification`) | Apache-2.0 / MIT |
 | serde, serde_json | Apache-2.0 / MIT |
 | tokio | MIT |
 | webview2-com | MIT |

@@ -16,6 +16,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # 헬퍼 프로세스 감시(tokio::process). 런타임은 tauri::async_runtime 이 이미 돌리고 있는 것을 쓴다.
 tokio = { version = "1", features = ["process", "io-util", "time", "sync", "rt", "macros"] }
+# 자동 업데이트. Rust API 로만 쓴다(JS 에는 권한을 주지 않는다). 설치본이 zip 이 아니라 exe 라 zip 기능은 뺀다.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
+# 업데이트 안내 알림(Rust API 로만 쓴다)
+tauri-plugin-notification = "2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -23,6 +27,8 @@ tauri-build = { version = "2", features = [] }
 [dev-dependencies]
 # 멈춘 시계로 ping 타이머를 시험한다(tokio::time::advance)
 tokio = { version = "1", features = ["test-util"] }
+# 업데이터 시험: 목(mock) 런타임에 플러그인을 올리고 로컬 HTTP 서버에서 latest.json 을 받는다
+tauri = { version = "2", features = ["test"] }
 
 [features]
 # cargo build 만으로 frontendDist 를 바이너리에 싣는다(tauri build 가 켜 주는 feature 와 동일)
