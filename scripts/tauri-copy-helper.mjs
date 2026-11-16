@@ -1,6 +1,6 @@
 // 헬퍼 산출물(helper/publish/peekaboo-helper.exe)을 Tauri 의 externalBin 이름으로 복사한다.
 // `bundle.externalBin: ["binaries/peekaboo-helper"]` 는 `binaries/peekaboo-helper-<타깃 트리플>.exe` 를 찾는다.
-// 사용: npm run helper:build 뒤에 `node scripts/tauri-copy-helper.mjs` (npm run dist:tauri 가 이어서 한다)
+// 사용: npm run helper:build 뒤에 `node scripts/tauri-copy-helper.mjs` (npm run dist 가 이어서 한다)
 import { copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

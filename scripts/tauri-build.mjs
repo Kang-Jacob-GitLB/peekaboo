@@ -1,4 +1,4 @@
-// `tauri build`(NSIS) 실행기. npm run dist:tauri 가 부른다.
+// `tauri build`(NSIS) 실행기. npm run dist 가 부른다.
 // 업데이터 설정(공개키·엔드포인트·requireSignedVersion)은 저장소의 src-tauri/updater.pub 가 있을 때만 얹는다
 // (scripts/updater-config.mjs 가 만든 release-tauri/updater.conf.json 을 `tauri build --config` 로). 파일이 없으면 업데이터 없는 빌드다.
 // 설치본 서명(.sig)은 개인키가 있는 로컬 빌드에서만 이 빌드가 함께 만든다(`createUpdaterArtifacts`).

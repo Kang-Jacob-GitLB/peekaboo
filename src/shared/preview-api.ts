@@ -1,9 +1,19 @@
-// main <-> renderer(미리보기 창) 계약. preload 가 window.peekaboo 로 노출한다.
-// 파일 해석(readText·listArchive)은 main 이 아니라 렌더러(host/file-ops)가 peek:// Range 요청으로 직접 한다.
+// 호스트(src-tauri) <-> renderer(미리보기 창) 계약. 렌더러 어댑터(host/tauri.ts)가 구현한다.
+// 파일 해석(readText·listArchive)은 호스트가 아니라 렌더러(host/file-ops)가 peek 프로토콜 Range 요청으로 직접 한다.
 
-import type { NativePreviewStatus, PixelRect } from './ipc-types'
+/** 미리보기 창 클라이언트 영역 기준 물리 픽셀 */
+export interface PixelRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
-export type { NativePreviewStatus, PixelRect }
+/**
+ * Windows 미리보기 핸들러 결과.
+ * shown = 표시됨, unavailable = 등록된 핸들러 없음, failed = 생성/초기화/표시 실패
+ */
+export type NativePreviewStatus = 'shown' | 'unavailable' | 'failed'
 
 export interface FileInfo {
   path: string
@@ -99,18 +109,17 @@ export interface PeekabooApi {
   onHide(cb: () => void): void
   /**
    * 선택한 텍스트를 클립보드에 복사했을 때(복사는 호스트가 한다).
-   * Tauri 호스트는 복사한 글자 수·줄 수를 함께 알려 렌더러가 토스트에 보여 준다(보이지 않는 글자가 섞인 복사를 알아채게). Electron 은 값이 없다.
+   * Tauri 호스트는 복사한 글자 수·줄 수를 함께 알려 렌더러가 토스트에 보여 준다(보이지 않는 글자가 섞인 복사를 알아채게).
    */
   onCopied(cb: (info?: CopiedInfo) => void): void
-  /** 닫기 버튼: 미리보기를 닫아 달라고 main 에 요청한다 */
+  /** 닫기 버튼: 미리보기를 닫아 달라고 호스트에 요청한다 */
   close(): void
   /** 텍스트 선택이 생기거나 없어질 때 알린다. 선택이 있을 때만 헬퍼가 Ctrl+C 를 가로챈다(없으면 탐색기의 파일 복사). */
   textSelected(selected: boolean): void
-  /** Ctrl+C 를 눌렀을 때 main 이 선택한 텍스트를 묻는다. 돌려준 문자열을 main 이 클립보드에 쓴다. */
+  /** Ctrl+C 를 눌렀을 때 호스트가 선택한 텍스트를 묻는다. 돌려준 문자열을 호스트가 클립보드에 쓴다. */
   onCopyRequest(cb: () => string): void
   /**
-   * 헤더 드래그로 창 이동을 시작한다. 구현하는 호스트(Tauri)에서만 있다 — 렌더러는 있을 때 헤더 mousedown 에서 부르고,
-   * 없는 호스트(Electron)는 CSS `-webkit-app-region: drag` 가 창을 옮긴다.
+   * 헤더 드래그로 창 이동을 시작한다. 렌더러는 헤더의 왼쪽 버튼 mousedown 에서 부른다.
    */
   startDrag?(): void
   /** 현재 표시 중인 폴더의 항목(최대 max 개) */

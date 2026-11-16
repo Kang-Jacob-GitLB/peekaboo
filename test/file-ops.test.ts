@@ -1,15 +1,10 @@
-// 골든 비교로 덮이지 않는 부분: range-reader 의 방어, 상한 동작, 블록 캐시, 바이트 도구, Range 헤더 해석.
+// 골든 비교로 덮이지 않는 부분: range-reader 의 방어, 상한 동작, 블록 캐시, 바이트 도구.
 
 process.env.TZ = 'UTC'
 
 import assert from 'node:assert/strict'
 import { crc32 as nodeCrc32, gzipSync } from 'node:zlib'
-import { mkdtemp, open, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import { partialHeaders, rangeBody, unsatisfiableHeaders } from '../src/main/peek-response.ts'
-import { parseRange } from '../src/main/range.ts'
 import { DEFAULT_CAPS, listArchive } from '../src/renderer/host/file-ops/archive.ts'
 import { crc32, latin1, utf8 } from '../src/renderer/host/file-ops/bytes.ts'
 import { createFileOps } from '../src/renderer/host/file-ops/index.ts'
@@ -168,78 +163,4 @@ describe('range-reader 의 Range 무시(200) 폴백', () => {
     assert.equal(Buffer.from(await reader.read(8, 100)).toString(), '89')
     assert.equal((await reader.read(20, 5)).length, 0)
   })
-})
-
-describe('peek 응답 조립(main/peek-response.ts)', () => {
-  it('206 헤더: Content-Range·Content-Length·Content-Type 과 노출 헤더', () => {
-    const h = partialHeaders(10, 19, 100, 'text/plain')
-    assert.equal(h.get('content-range'), 'bytes 10-19/100')
-    assert.equal(h.get('content-length'), '10')
-    assert.equal(h.get('content-type'), 'text/plain')
-    assert.equal(h.get('access-control-allow-origin'), '*')
-    assert.match(h.get('access-control-expose-headers') ?? '', /Content-Range/)
-    assert.equal(h.get('accept-ranges'), 'bytes')
-  })
-  it('416 헤더: bytes */크기 와 노출 헤더', () => {
-    const h = unsatisfiableHeaders(42)
-    assert.equal(h.get('content-range'), 'bytes */42')
-    assert.match(h.get('access-control-expose-headers') ?? '', /Content-Range/)
-    assert.equal(h.get('access-control-allow-origin'), '*')
-  })
-  it('Content-Type 이 없으면 헤더를 만들지 않는다', () => {
-    assert.equal(partialHeaders(0, 0, 1, null).has('content-type'), false)
-  })
-  it('rangeBody 는 구간만 읽고 끝나면 핸들을 닫는다', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'peek-'))
-    try {
-      const file = join(dir, 'a.bin')
-      await writeFile(file, Buffer.from('0123456789abcdef'))
-      const fh = await open(file, 'r')
-      const body = await new Response(rangeBody(fh, 4, 9)).text()
-      assert.equal(body, '456789')
-      await new Promise((r) => setTimeout(r, 20))
-      assert.equal(fh.fd, -1, '핸들이 닫혀야 한다')
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-  it('rangeBody 는 취소해도 핸들을 닫는다', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'peek-'))
-    try {
-      const file = join(dir, 'b.bin')
-      await writeFile(file, Buffer.alloc(1_000_000, 1))
-      const fh = await open(file, 'r')
-      const rd = rangeBody(fh, 0, 999_999).getReader()
-      await rd.read()
-      await rd.cancel()
-      await new Promise((r) => setTimeout(r, 50))
-      assert.equal(fh.fd, -1, '핸들이 닫혀야 한다')
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-})
-
-describe('Range 헤더 해석(main/range.ts)', () => {
-  const cases: [string | null, number, unknown][] = [
-    [null, 100, { kind: 'none' }],
-    ['bytes=0-9', 100, { kind: 'ok', start: 0, end: 9 }],
-    ['bytes=90-', 100, { kind: 'ok', start: 90, end: 99 }],
-    ['bytes=90-500', 100, { kind: 'ok', start: 90, end: 99 }],
-    ['bytes=-10', 100, { kind: 'ok', start: 90, end: 99 }],
-    ['bytes=-500', 100, { kind: 'ok', start: 0, end: 99 }],
-    ['bytes=100-', 100, { kind: 'unsatisfiable' }],
-    ['bytes=0-0', 0, { kind: 'unsatisfiable' }],
-    ['bytes=-0', 100, { kind: 'unsatisfiable' }],
-    ['bytes=-5', 0, { kind: 'unsatisfiable' }],
-    ['bytes=9-0', 100, { kind: 'none' }],
-    ['bytes=0-9,20-29', 100, { kind: 'none' }],
-    ['bytes=-', 100, { kind: 'none' }],
-    ['items=0-9', 100, { kind: 'none' }],
-    ['bytes=a-b', 100, { kind: 'none' }],
-    ['bytes=99999999999999999999-', 100, { kind: 'none' }]
-  ]
-  for (const [header, size, want] of cases) {
-    it(`${header} (크기 ${size})`, () => assert.deepEqual(parseRange(header, size), want))
-  }
 })

@@ -2,8 +2,14 @@
 // 서버가 Range 를 어떻게 다루든 range-reader 가 같은 결과를 내는지 보려고 동작 모드를 둔다.
 
 import { readFile } from 'node:fs/promises'
-import { fromPeekUrl, toPeekUrl } from '../../src/shared/channels.ts'
-import { parseRange } from '../../src/main/range.ts'
+import { parseRange } from './range.ts'
+
+const PEEK_PREFIX = 'peek://file/'
+
+/** 로컬 경로 → 시험용 URL. 실제 URL 형식은 호스트 어댑터(host/tauri.ts)의 것이고, 서버 흉내에는 경로만 왕복되면 된다. */
+const toPeekUrl = (path: string): string => PEEK_PREFIX + encodeURIComponent(path)
+
+const fromPeekUrl = (url: string): string | null => (url.startsWith(PEEK_PREFIX) ? decodeURIComponent(url.slice(PEEK_PREFIX.length).split(/[?#]/)[0]) : null)
 
 export type Mode =
   /** 표준 동작: 206 + Content-Range, 범위 밖은 416 */

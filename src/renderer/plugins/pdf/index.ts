@@ -22,7 +22,7 @@ interface Slot {
   gen: number
 }
 
-// CMap·표준 폰트·wasm 은 렌더러 출력의 pdfjs/ 아래에 같이 싣는다(electron.vite.config.ts). dev/file:// 모두 문서 기준 상대 경로.
+// CMap·표준 폰트·wasm 은 렌더러 출력의 pdfjs/ 아래에 같이 싣는다(vite.shared.ts). dev/file:// 모두 문서 기준 상대 경로.
 const assetUrl = (dir: string) => new URL(`./pdfjs/${dir}/`, document.baseURI).href
 
 type OutlineNode = Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]

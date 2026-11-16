@@ -9,7 +9,7 @@ const MAX_BYTES = 2 * 1024 * 1024
  *   allow-same-origin 은 부모가 링크 클릭을 막으려고 문서에 접근하는 데만 쓴다(스크립트가 없으니 안전).
  * - srcdoc 문서는 앱의 CSP 를 물려받으므로 외부(http) 리소스는 불러오지 않는다.
  *   상대 경로는 HTML 파일 위치가 아니라 앱 페이지 기준으로 풀리므로, 옆 파일의 이미지·CSS 는 표시되지 않는다.
- * - 다른 문서로의 이동은 main 의 will-frame-navigate 가, UNC 경로 요청은 blockRemoteFileRequests 가 막는다.
+ * - 다른 문서로의 이동은 호스트의 서브프레임 이동 차단(guard.rs)이, file:// 같은 외부 리소스 요청은 앱 CSP(tauri.conf.json)가 막는다.
  */
 export function create(): PreviewPlugin {
   let off: (() => void) | undefined

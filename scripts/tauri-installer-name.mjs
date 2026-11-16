@@ -1,4 +1,4 @@
-// `tauri build --bundles nsis` 가 만든 설치본을 Electron 설치본과 같은 이름(Peekaboo-Setup-<버전>-x64.exe)으로
+// `tauri build --bundles nsis` 가 만든 설치본을 옛 Electron 설치본과 같은 이름(Peekaboo-Setup-<버전>-x64.exe)으로
 // release-tauri/ 에 복사한다. Tauri 의 산출물 이름(Peekaboo_<버전>_x64-setup.exe)은 바꿀 수 없어 빌드 뒤에 옮긴다.
 // 서명 파일(.sig)이 있으면 같은 이름으로 함께 옮긴다.
 // 타깃 폴더는 CARGO_TARGET_DIR 을 따른다(상대 경로는 cargo 를 돌리는 src-tauri 기준).

@@ -106,10 +106,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Tauri 빌드에는 Electron 바이너리가 필요 없어 받지 않는다
       - name: 의존성 설치
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
 
       # 앱(tauri.conf.json 의 version·설치본 이름·피드)은 package.json 을, 헬퍼(ready 메시지)는 어셈블리 버전을 읽는다
@@ -118,7 +115,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: npm pkg set version="$VERSION"
 
-      # 아래 네 단계는 `npm run dist:tauri` 와 같은 순서다. 헬퍼에 버전을 넘기려고 단계를 나눠 돌린다.
+      # 아래 네 단계는 `npm run dist` 와 같은 순서다. 헬퍼에 버전을 넘기려고 단계를 나눠 돌린다.
       - name: 헬퍼 빌드
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -129,7 +126,7 @@ jobs:
         run: node scripts/tauri-copy-helper.mjs
 
       - name: 렌더러 빌드
-        run: npm run build:web:tauri
+        run: npm run build
 
       # tauri build(NSIS, cargo 에 `--locked`). 공개키가 있으면 업데이터 설정을 얹는다(없으면 업데이터 없는 빌드이고, sign 잡이 실패시킨다).
       - name: 설치본 빌드

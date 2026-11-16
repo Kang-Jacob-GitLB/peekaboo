@@ -4,7 +4,7 @@ using Windows.Win32.Foundation;
 
 namespace Peekaboo.Helper.Ipc;
 
-// 프로토콜 정의: docs/ipc.md, TS 대응 타입: src/shared/ipc-types.ts
+// 프로토콜 정의: docs/ipc.md
 
 internal static class Protocol
 {
