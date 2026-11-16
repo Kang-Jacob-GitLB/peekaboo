@@ -55,10 +55,15 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
 ## 확인 방법
 
 - 기본 검증: `npm run typecheck` → `npm test` → `npm run build`(헬퍼를 고쳤으면 `npm run helper:build`).
-- 미리보기 화면 확인은 키 입력 없이 한다: `npm run build` 후
-  `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> electron .` 로 **미리보기 창만** 캡처한다. 전체 화면 스크린샷은 찍지 않는다.
-  설치된 Peekaboo 가 실행 중이면 `--user-data-dir=<임시 폴더>` 를 붙여 단일 인스턴스 잠금을 피한다.
+- 미리보기 화면 확인은 키 입력 없이, **화면 밖 모드(`PEEKABOO_OFFSCREEN=1`)를 기본으로** 한다. 사용자가 PC 를 쓰는 중에도 창이
+  어느 모니터에도 뜨지 않고 포커스를 가져가지 않는다(창을 모든 모니터 왼쪽 바깥에 두고, Chromium 이 가려진 창의 렌더를 멈추지 않게 하며,
+  Electron 은 헬퍼·트레이도 띄우지 않고, 캡처가 끝나면 스스로 종료한다). `npm run build` 후
+  `PEEKABOO_OFFSCREEN=1 PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> electron . --user-data-dir=<임시 폴더>` 로 **미리보기 창만** 캡처한다.
+  전체 화면 스크린샷은 찍지 않는다. `--user-data-dir` 은 설치된 Peekaboo 의 단일 인스턴스 잠금과 설정을 피하려는 것이다.
 - Tauri 쪽 캡처: `npm run build:web:tauri` → `cargo build`(`src-tauri/`) 후
-  `PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> src-tauri/target/debug/peekaboo.exe`(디버그 빌드 전용, 캡처 뒤 스스로 종료). Rust 검사는 `cargo fmt --check`·`cargo clippy -- -D warnings`·`cargo test`.
+  `PEEKABOO_HOTKEY=0 PEEKABOO_OFFSCREEN=1 PEEKABOO_PREVIEW=<파일> PEEKABOO_CAPTURE=<png> src-tauri/target/debug/peekaboo.exe`
+  (디버그 빌드 전용, 캡처 뒤 스스로 종료). Rust 검사는 `cargo fmt --check`·`cargo clippy -- -D warnings`·`cargo test`.
+  화면 안에 띄우는 확인(`PEEKABOO_OFFSCREEN` 없이)은 사용자가 PC 를 쓰지 않을 때만 한다. 화면 밖 모드는 창이 모니터와 겹치면 띄우지 않고 종료한다.
+- 메모리 실측도 같은 모드로 한다(호스트 프로세스의 Private·PeakWorkingSet 을 폴링). Office 미리보기 핸들러는 Word/Excel 을 기동하므로 PC 를 쓰는 중에는 시험하지 않는다.
 - 키를 보내는 GUI 테스트는 사용자가 PC 를 쓰지 않을 때만 한다. 전경 창이 예상한 탐색기 창이 아니면(잠금 화면 포함) 즉시 중단한다.
 - 로그: `%APPDATA%\Peekaboo\logs\peekaboo.log`(표시 지연, 헬퍼 상태, 업데이트 진행).

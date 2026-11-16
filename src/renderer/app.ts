@@ -24,6 +24,16 @@ const main = $('main')
 // 다른 앱으로 전환한 뒤에도 닫을 수 있게(비포커스 창도 클릭은 받는다)
 $('.h-close').addEventListener('click', () => host.close())
 
+// 헤더로 창을 옮긴다. Electron 은 CSS(-webkit-app-region)가 하고, 호스트가 startDrag 를 주면(Tauri) 헤더의 왼쪽 버튼 mousedown 에서 부른다.
+const startDrag = host.startDrag?.bind(host)
+if (startDrag) {
+  document.documentElement.dataset.windowDrag = 'script'
+  $('header').addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || (e.target as Element).closest('.h-close')) return
+    startDrag()
+  })
+}
+
 let current = { seq: -1, abort: null as AbortController | null, plugin: null as PreviewPlugin | null }
 
 function teardown(): void {
@@ -216,15 +226,16 @@ host.onCopyRequest(() => {
 
 // 복사 알림(복사 자체는 main 이 한다)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-host.onCopied(() => {
+host.onCopied((info) => {
   let toast = document.querySelector<HTMLElement>('.toast')
   if (!toast) {
     toast = document.createElement('div')
     toast.className = 'toast'
     toast.setAttribute('role', 'status')
-    toast.textContent = '복사했습니다'
     document.body.append(toast)
   }
+  // 글자·줄 수를 아는 호스트(Tauri)는 "N자 복사"(여러 줄이면 "N자·M줄 복사")로 보여 숨은 글자 복사를 알아챌 수 있게 한다
+  toast.textContent = info ? `${info.chars.toLocaleString()}자${info.lines > 1 ? `·${info.lines.toLocaleString()}줄` : ''} 복사` : '복사했습니다'
   toast.classList.add('show')
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => toast.classList.remove('show'), 1200)

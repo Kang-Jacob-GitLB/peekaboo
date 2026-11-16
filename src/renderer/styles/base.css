@@ -63,10 +63,10 @@ header {
   padding: 0 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  /* 헤더를 끌어 창을 옮긴다 */
-  -webkit-app-region: drag;
   user-select: none;
 }
+/* 헤더를 끌어 창을 옮긴다. 호스트가 스크립트로 옮기는 경우(Tauri, data-window-drag)에는 쓰지 않는다 */
+html:not([data-window-drag='script']) header { -webkit-app-region: drag; }
 .h-name { font-weight: 600; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .h-size, .h-sub { color: var(--fg-dim); white-space: nowrap; flex: none; }
 .h-close {

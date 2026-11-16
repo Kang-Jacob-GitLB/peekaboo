@@ -91,16 +91,46 @@ pub fn close(
     Ok(())
 }
 
-/// 텍스트 선택 여부. 지금은 저장만 하고 헬퍼에는 알리지 않는다: 알리면 헬퍼가 Ctrl+C 를 삼키는데, 선택한 텍스트를
-/// 클립보드에 쓰는 복사(`key{copy}` 처리)가 아직 없어 아무 일도 일어나지 않기 때문이다. 복사와 함께 연결한다.
+/// 텍스트 선택 여부. 값이 바뀌면 헬퍼에 알린다: 선택이 있는 동안만 헬퍼가 Ctrl+C 를 삼켜 `key{copy}` 로 알려 주고,
+/// 없으면 Ctrl+C 는 탐색기의 파일 복사로 간다.
 #[tauri::command]
 pub fn text_selected(
     webview: Webview,
     state: State<'_, PreviewState>,
+    controller: State<'_, Arc<Controller>>,
     selected: bool,
 ) -> Result<(), String> {
     from_preview(&webview)?;
-    state.set_text_selected(selected);
+    if state.set_text_selected(selected) {
+        controller.send_text_selection(selected);
+    }
+    Ok(())
+}
+
+/// Ctrl+C 복사 요청(`preview:copy-request`)에 대한 렌더러의 응답. 렌더러가 임의로 클립보드를 쓰는 길은 없다:
+/// 요청 번호가 지금 응답을 기다리는 번호와 같을 때만 받고(요청 없이 온 응답·낡은 번호·두 번째 응답은 버린다)
+/// 클립보드는 호스트가 쓴다.
+#[tauri::command]
+pub fn copy_text(
+    webview: Webview,
+    app: AppHandle,
+    state: State<'_, PreviewState>,
+    id: u64,
+    text: String,
+) -> Result<(), String> {
+    from_preview(&webview)?;
+    if state.take_copy(id) {
+        preview::copy_to_clipboard(&app, &text, "ctrl+c");
+    }
+    Ok(())
+}
+
+/// 헤더 드래그로 창 이동을 시작한다(렌더러가 헤더의 왼쪽 버튼 mousedown 에서 부른다).
+/// 창 제어 권한(`core:window:*`)을 렌더러에 주지 않고 이 커맨드 하나만 연다.
+#[tauri::command]
+pub fn start_drag(webview: Webview, app: AppHandle) -> Result<(), String> {
+    from_preview(&webview)?;
+    preview::start_drag(&app);
     Ok(())
 }
 

@@ -149,6 +149,10 @@ pub enum HostMessage {
     State {
         preview_open: bool,
     },
+    /// 미리보기 창에 텍스트가 선택돼 있는지. true 인 동안만 헬퍼가 Ctrl+C 를 삼킨다.
+    TextSelection {
+        selected: bool,
+    },
     GetSelection {
         id: i32,
     },
@@ -672,6 +676,13 @@ mod tests {
         assert_eq!(
             v,
             serde_json::json!({"v":1,"type":"state","previewOpen":true})
+        );
+
+        let v: serde_json::Value =
+            serde_json::from_str(&HostMessage::TextSelection { selected: true }.to_line()).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"v":1,"type":"textSelection","selected":true})
         );
 
         let v: serde_json::Value = serde_json::from_str(&HostMessage::Shutdown.to_line()).unwrap();
