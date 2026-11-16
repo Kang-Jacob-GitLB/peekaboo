@@ -5,7 +5,7 @@
 Windows 탐색기에서 파일을 선택하고 **스페이스바**를 누르면 바로 미리보기 창이 뜨는 상주 프로그램입니다.
 macOS Quick Look 과 비슷한 사용감을 목표로 합니다. 일부 구현은 [QuickLook](https://github.com/QL-Win/QuickLook)(GPL-3.0)을 참고했습니다(아래 라이선스 참고).
 
-> 🚧 개발 중 (v0.1, MVP) — 아래 지원 포맷 중 체크된 것만 동작합니다.
+> 🚧 개발 중 — 아래 지원 포맷 중 체크된 것만 동작합니다. 1.0.0 부터 Tauri 2 기반 설치본입니다(0.x 는 Electron).
 
 <!-- 스크린샷 자리 -->
 <p align="center"><em>(스크린샷 준비 중)</em></p>
@@ -56,14 +56,20 @@ Markdown·HTML 의 제목, PDF 의 책갈피가 2개 이상이면 왼쪽에 목�
 
 ### 업데이트
 
-0.2.0 부터는 앱이 스스로 업데이트합니다.
+1.0.0 이상은 앱이 스스로 업데이트합니다.
 
-- 시작 10초 뒤와 이후 6시간마다 [Releases](../../releases) 에서 새 버전을 확인하고, 있으면 백그라운드로 내려받습니다.
-- 다 받으면 알림이 뜹니다. 알림이나 트레이 메뉴의 **다시 시작하여 업데이트** 를 누르면 바로 설치·재실행하고,
-  그냥 두면 Peekaboo 를 끌 때 조용히 설치됩니다.
+- 시작 10초 뒤와 이후 6시간마다 [Releases](../../releases) 의 `latest.json` 으로 새 버전을 확인하고, 있으면 백그라운드로 내려받습니다.
+- 다 받으면 알림으로 알려 줍니다. 트레이 메뉴의 **다시 시작하여 업데이트** 를 누르면 바로 설치·재실행하고,
+  그냥 두면 Peekaboo 를 끌 때 설치됩니다.
 - 트레이 메뉴의 **업데이트 확인** 으로 바로 확인할 수도 있습니다.
-- 설치 파일은 릴리스의 `latest.yml` 에 적힌 SHA-512 와 맞는지 검사한 뒤 실행합니다.
-- 0.1.0 에는 업데이트 기능이 없어 0.2.0 은 직접 받아 설치해야 합니다.
+- 설치 파일은 `latest.json` 에 든 서명이 앱에 박힌 공개키와 맞는지 검사한 뒤 실행합니다.
+- 프리릴리스(베타)는 자동 업데이트 대상이 아닙니다.
+
+### 0.x(Electron) 사용자
+
+1.0.0 은 Electron 에서 Tauri 로 바뀐 버전이라 0.x 앱은 스스로 업데이트하지 못합니다.
+**1.0.0 설치 파일을 직접 한 번 설치**하세요. 현재 사용자용으로 설치한 옛 버전은 지우고 설정·시작 시 실행을 이어받습니다.
+"모든 사용자"용으로 설치했다면 설정 > 앱에서 옛 버전을 직접 제거하세요(새 앱이 처음 한 번 알림으로 안내합니다).
 
 ## 빌드
 
@@ -71,15 +77,15 @@ Markdown·HTML 의 제목, PDF 의 책갈피가 2개 이상이면 왼쪽에 목�
 
 - Node.js 22 이상
 - .NET SDK 8 이상 (헬퍼는 `net8.0-windows` 를 타깃으로 하며, 더 높은 버전 SDK 로도 빌드됩니다)
-- Rust (MSVC 툴체인, `stable-x86_64-pc-windows-msvc`) — `src-tauri/`(Tauri 2 전환 작업)를 빌드·시험할 때만 필요합니다
+- Rust (MSVC 툴체인, `stable-x86_64-pc-windows-msvc`) — 설치 파일과 `src-tauri/` 를 빌드·시험하는 데 필요합니다
 - Windows 10 1809 이상 / Windows 11 (x64)
 
 ```powershell
 npm install
 npm run helper:build   # C# 헬퍼 → helper/publish/peekaboo-helper.exe
-npm run dev            # 개발 모드 실행
-npm run dist           # 설치 파일 → release/
-npm run dist:tauri     # Tauri 설치 파일(NSIS, Rust 필요) → release-tauri/ — 전환 작업용이며 아직 릴리스에는 쓰이지 않습니다
+npm run dist:tauri     # 설치 파일(Tauri, NSIS) → release-tauri/ — 릴리스와 같은 방식
+npm run dev            # Electron 개발 모드(이전 호스트, M8 에서 제거 예정)
+npm run dist           # Electron 설치 파일 → release/ (이전 호스트, M8 에서 제거 예정)
 ```
 
 ### 단계별 확인 방법
@@ -117,7 +123,8 @@ PC 를 쓰는 중에도 확인하려면 `PEEKABOO_OFFSCREEN=1` 을 더합니다.
 | `docs:` · `build:` · `ci:` · `chore:` · `test:` · `refactor:` | 릴리스하지 않음 |
 
 - **매일 00:00(KST)** `nightly-release.yml` 이 마지막 태그 이후 `main` 커밋을 보고, 위 표에서 릴리스할 변경이 있으면
-  Windows 설치본을 빌드해 태그와 Release(설치본 + `latest.yml` + blockmap)를 만듭니다. 문서·빌드 설정만 바뀐 날은 건너뜁니다.
+  Windows 설치본을 빌드·서명해 태그와 Release(설치본 + 서명 `.sig` + 업데이트 피드 `latest.json`)를 만듭니다.
+  서명 키(저장소 시크릿 `TAURI_SIGNING_PRIVATE_KEY`)가 없으면 발행하지 않고 실패합니다. 문서·빌드 설정만 바뀐 날은 건너뜁니다.
 - 바로 릴리스하려면 Actions → `nightly-release` → **Run workflow**(올림 단계 선택, `dry_run` 으로 계산만 해 볼 수도 있음).
 - 다음 버전 미리 보기: `npm run next-version`
 - 버전은 태그로만 관리합니다. `package.json`·헬퍼 csproj 의 `0.0.0` 은 그대로 두세요(빌드할 때 태그 버전이 들어갑니다).
@@ -125,17 +132,17 @@ PC 를 쓰는 중에도 확인하려면 `PEEKABOO_OFFSCREEN=1` 을 더합니다.
 ## 구조
 
 ```
-Electron (TypeScript) ── 트레이, 설정, 미리보기 창, 포맷별 렌더러 플러그인
+Tauri 2 (Rust) ── 트레이, 설정, 미리보기 창 ─ WebView2 의 포맷별 렌더러 플러그인(TypeScript)
    ▲  stdin/stdout JSON Lines  (docs/ipc.md)
    ▼
 peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (COM)
 ```
 
 - `helper/` — Win32/COM 연동 헬퍼. 탐색기에 포커스가 있을 때 키 입력을 감지하고 선택된 파일 경로를 조회합니다.
-- `src/main/` — Electron main 프로세스. 헬퍼 감시/재시작, 트레이, 로그, 미리보기 창 관리.
-- `src-tauri/` — Tauri 2 호스트(진행 중인 Electron 대체, [전환 계획](docs/tauri-migration.md)): 트레이·설정·시작 시 실행·로그·단일 인스턴스, NSIS 패키징. 아직 릴리스에는 쓰이지 않습니다. 설치기 훅·업데이트 리허설 절차는 [docs/tauri-rehearsal.md](docs/tauri-rehearsal.md). 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
+- `src/main/` — 이전 호스트인 Electron main(릴리스에는 쓰이지 않으며 M8 에서 제거 예정). 헬퍼 감시/재시작, 트레이, 로그, 미리보기 창 관리.
+- `src-tauri/` — 릴리스 호스트인 Tauri 2([전환 계획](docs/tauri-migration.md)): 트레이·설정·시작 시 실행·로그·단일 인스턴스·자동 업데이트, NSIS 패키징. 설치기 훅·업데이트 리허설 절차는 [docs/tauri-rehearsal.md](docs/tauri-rehearsal.md). 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 인터페이스를 구현하고 `registry.ts` 에 등록하면 새 포맷이 추가됩니다.
-- `src/renderer/host/` — 렌더러가 호스트(Electron)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek://` Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
+- `src/renderer/host/` — 렌더러가 호스트(Tauri, 이전 Electron)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek://` Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
 
 로그는 `%APPDATA%\Peekaboo\logs\` 에 저장됩니다.
 
@@ -164,7 +171,7 @@ v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부�
 
 | 라이브러리 | 라이선스 |
 |---|---|
-| Electron | MIT |
+| Electron (이전 호스트, 릴리스에는 쓰이지 않으며 M8 에서 제거 예정) | MIT |
 | pdf.js (pdfjs-dist) | Apache-2.0 |
 | SheetJS (xlsx) | Apache-2.0 |
 | mammoth | BSD-2-Clause |

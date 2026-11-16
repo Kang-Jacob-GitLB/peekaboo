@@ -57,6 +57,12 @@ const SECTIONS = [
   ['other', '그 밖의 변경(내부)']
 ]
 
+/** 릴리스 노트 꼬리 문구: 업데이트 방법과 0.x(Electron) 사용자 이전 안내 */
+export const RELEASE_NOTES_TAIL = [
+  '설치 파일은 아래 Assets 에 있습니다. Tauri 버전(1.0.0 베타 포함)을 쓰고 있다면 앱이 이 버전을 자동으로 내려받고, 트레이 메뉴의 "다시 시작하여 업데이트"로 설치하거나 Peekaboo 를 끌 때 설치됩니다.',
+  '0.x(Electron)를 쓰고 있다면 이 설치 파일을 직접 한 번 설치하세요. 현재 사용자용으로 설치한 옛 버전은 지우고 설정과 시작 시 실행을 이어받습니다. "모든 사용자"용으로 설치했다면 설정 > 앱에서 옛 버전을 직접 제거하세요.'
+].join('\n\n')
+
 /** 릴리스 노트(마크다운). 첫 줄은 태그 제목 */
 export function releaseNotes(next, commits) {
   const groups = Object.fromEntries(SECTIONS.map(([k]) => [k, []]))
@@ -70,7 +76,7 @@ export function releaseNotes(next, commits) {
     if (!groups[k].length) continue
     out.push(`## ${label}`, '', ...groups[k], '')
   }
-  out.push('설치 파일은 아래 Assets 에 있습니다. 0.2.0 이상을 쓰고 있다면 앱이 이 버전을 자동으로 내려받고, 트레이 메뉴의 "다시 시작하여 업데이트"로 설치하거나 Peekaboo 를 끌 때 설치됩니다.')
+  out.push(RELEASE_NOTES_TAIL)
   return out.join('\n')
 }
 

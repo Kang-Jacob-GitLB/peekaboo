@@ -1,12 +1,15 @@
 name: release
 
-# Windows 설치본을 빌드해 GitHub Release 에 첨부한다. 세 가지로 실행된다:
-#   1) 사람이 semver 태그(v0.2.0, 프리릴리스 v0.3.0-beta.1)를 push — 태그가 이미 있고, 노트는 그 태그 메시지
-#      프리릴리스 꼬리표는 alpha·beta 만 쓴다: electron-updater 는 그 채널에서만 이후 정식 릴리스로 올라간다(rc 는 갇힌다)
+# Tauri 2 Windows 설치본(NSIS)을 빌드·서명해 GitHub Release 에 첨부한다(전환 계획 docs/tauri-migration.md M7). 세 가지로 실행된다:
+#   1) 사람이 semver 태그(v1.0.0, 프리릴리스 v1.1.0-beta.1)를 push — 태그가 이미 있고, 노트는 그 태그 메시지
+#      프리릴리스 꼬리표는 alpha·beta 만 쓴다. 프리릴리스는 releases/latest 에 잡히지 않아 앱 업데이트 대상이 아니다
 #   2) nightly-release.yml 이 재사용 워크플로로 호출(workflow_call) — 버전·대상 커밋·노트를 입력으로 받고,
 #      빌드가 성공한 뒤 발행 잡에서 annotated 태그를 만든다(빌드가 실패하면 태그도 남지 않는다)
-#   3) 수동 실행(workflow_dispatch) — 태그 없이 설치본만 빌드해 아티팩트로 올린다(점검용, 발행하지 않음)
+#   3) 수동 실행(workflow_dispatch) — 태그 없이 설치본만 빌드해 아티팩트로 올린다(점검용, 서명·발행하지 않음)
 # 버전의 기준은 태그 하나다: 저장소의 package.json·헬퍼 csproj 는 0.0.0 으로 두고, 빌드 직전에 버전을 넣는다(커밋하지 않음).
+# 잡 구성: build(서명 시크릿 없음) → sign(시크릿 사용, 발행하는 실행만) → release(발행).
+#   빌드 단계의 의존성 설치·컴파일 코드가 업데이트 서명 개인키를 볼 수 없게 하려는 것이다.
+#   발행하는 실행에서 서명 키나 공개키(src-tauri/updater.pub)가 없으면 sign 잡이 실패하므로, 서명 없는 정식 릴리스는 나가지 않는다.
 # 주의: GITHUB_TOKEN 으로 push 한 태그는 이 워크플로를 다시 트리거하지 않는다 — 그래서 nightly 가 workflow_call 로 부른다.
 # 주의: tags 필터는 정규식이 아니라 glob 이다.
 on:
@@ -16,9 +19,16 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
   workflow_call:
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        description: "업데이트 서명 개인키(minisign). 발행하는 실행에서는 필수(없으면 sign 잡이 실패)"
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        description: "개인키 비밀번호(키에 비밀번호가 없으면 비워 둔다)"
+        required: false
     inputs:
       version:
-        description: "릴리스할 버전(접두사 v 없이, 예: 0.3.0)"
+        description: "릴리스할 버전(접두사 v 없이, 예: 1.0.0)"
         type: string
         required: true
       sha:
@@ -35,11 +45,13 @@ permissions:
 
 jobs:
   # ── Windows 설치본 빌드 ──────────────────────────────────────────────
-  # 설치본(NSIS) 외에 앱 안 업데이트용 메타데이터(release/latest.yml: 버전·sha512)와 blockmap(차등 다운로드)도 올린다.
-  #   electron-builder.yml 의 publish 설정 덕분에 --publish never 여도 생성된다.
+  # 서명 시크릿을 받지 않는다. CI 에서 scripts/tauri-build.mjs 는 설치본 서명(.sig)을 만들지 않고,
+  # 공개키(src-tauri/updater.pub)로 업데이터 설정만 얹는다. 서명은 아래 sign 잡이 한다.
   build:
     name: 빌드 (Windows)
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     defaults:
       run:
         shell: bash
@@ -83,54 +95,165 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Rust 툴체인 설정
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          # build.yml·tauri-build.yml 과 같은 버전으로 맞춘다. 올릴 때는 세 곳을 함께 바꾼다.
+          toolchain: 1.100.0
+
+      - name: Rust 캐시
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      # Tauri 빌드에는 Electron 바이너리가 필요 없어 받지 않는다
       - name: 의존성 설치
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
 
-      # 앱(app.getVersion·설치본 이름·latest.yml)은 package.json 을, 헬퍼(ready 메시지)는 어셈블리 버전을 읽는다
+      # 앱(tauri.conf.json 의 version·설치본 이름·피드)은 package.json 을, 헬퍼(ready 메시지)는 어셈블리 버전을 읽는다
       - name: 버전 넣기 (커밋하지 않음)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: npm pkg set version="$VERSION"
 
+      # 아래 네 단계는 `npm run dist:tauri` 와 같은 순서다. 헬퍼에 버전을 넘기려고 단계를 나눠 돌린다.
       - name: 헬퍼 빌드
         env:
           VERSION: ${{ steps.version.outputs.version }}
         # 어셈블리 버전에는 프리릴리스 꼬리표를 넣을 수 없어 숫자 부분만 쓴다(InformationalVersion 에는 전체)
         run: npm run helper:build -- -p:Version="${VERSION%%-*}" -p:InformationalVersion="$VERSION"
 
-      - name: 빌드 (electron-vite)
-        run: npm run build
+      - name: 헬퍼 복사 (externalBin)
+        run: node scripts/tauri-copy-helper.mjs
 
-      # --publish never: 태그 트리거 + 토큰이 있는 상태에서 electron-builder 가 스스로 Release 를 만들어
-      #   아래 release 잡과 충돌하는 것을 막는다. 코드 서명 인증서가 없어 미서명이다.
-      - name: 패키징 (electron-builder)
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --win --publish never
+      - name: 렌더러 빌드
+        run: npm run build:web:tauri
 
-      # 앱 안 업데이트가 읽는 메타데이터(버전·sha512)가 없으면 이 잡에서 바로 실패한다(수동 점검 실행도 잡아낸다)
-      - name: 업데이트 메타데이터 확인
+      # tauri build(NSIS, cargo 에 `--locked`). 공개키가 있으면 업데이터 설정을 얹는다(없으면 업데이터 없는 빌드이고, sign 잡이 실패시킨다).
+      - name: 설치본 빌드
+        run: node scripts/tauri-build.mjs
+
+      # Tauri 의 산출물 이름(Peekaboo_<버전>_x64-setup.exe)을 Peekaboo-Setup-<버전>-x64.exe 로 옮긴다(release-tauri/)
+      - name: 설치본 이름 변경
+        run: node scripts/tauri-installer-name.mjs
+
+      - name: 설치본 확인
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          ls -la release
-          test -f release/latest.yml || { echo "::error::release/latest.yml 이 없습니다"; exit 1; }
-          grep -q "^version: $VERSION$" release/latest.yml || { echo "::error::latest.yml 의 버전이 $VERSION 이 아닙니다"; cat release/latest.yml; exit 1; }
+          ls -la release-tauri
+          test -f "release-tauri/Peekaboo-Setup-${VERSION}-x64.exe" || { echo "::error::Peekaboo-Setup-${VERSION}-x64.exe 가 없습니다"; exit 1; }
 
+      # 서명 전 설치본. sign 잡이 받아 서명하고, release 잡은 sign 잡의 산출물(release-signed)만 첨부한다.
       - name: 설치본 아티팩트 업로드
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: installers-win
+          name: installer-unsigned
+          path: release-tauri/Peekaboo-Setup-*-x64.exe
+          if-no-files-found: error
+
+  # ── 서명·피드 생성 ───────────────────────────────────────────────────
+  # 발행하는 실행(태그 push, 재사용 호출)에서만 돈다. 서명 개인키(저장소 시크릿)를 받는 것은 이 잡뿐이다.
+  # 서명 키·공개키가 없거나 서명·검증이 실패하면 이 잡이 실패하고 release 잡은 돌지 않는다.
+  sign:
+    name: 설치본 서명·피드 생성
+    needs: build
+    if: github.event_name == 'push' || inputs.version
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.sha || github.ref }}
+          persist-credentials: false
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: 설치본 아티팩트 다운로드
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: installer-unsigned
+          path: release-tauri
+
+      # 키는 환경 변수로만 다루고 명령줄에 싣지 않는다. 여기서 실패하면 서명 없이 발행되지 않는다.
+      - name: 서명 키·공개키 확인
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY 시크릿이 없어 서명할 수 없습니다. 서명 없는 릴리스는 발행하지 않습니다"
+            exit 1
+          fi
+          if [ ! -s src-tauri/updater.pub ]; then
+            echo "::error::src-tauri/updater.pub 가 없어 서명을 검증할 수 없습니다. 서명 없는 릴리스는 발행하지 않습니다"
+            exit 1
+          fi
+
+      # 피드(latest.json)의 노트: 재사용 호출이면 입력 노트, 태그 push 면 annotated 태그 메시지, 없으면 update-feeds.mjs 의 기본값.
+      # 노트는 커밋 제목·태그 메시지에서 온 문자열이라 셸에 직접 끼워 넣지 않고 환경 변수·파일로만 넘긴다.
+      - name: 피드 노트 준비
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_NOTES: ${{ inputs.notes }}
+        run: |
+          notes="$RUNNER_TEMP/feed_notes.txt"
+          : > "$notes"
+          if [ -n "$INPUT_VERSION" ]; then
+            printf '%s\n' "$INPUT_NOTES" > "$notes"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" || true
+            if [ "$(git cat-file -t "$GITHUB_REF_NAME" 2>/dev/null)" = "tag" ]; then
+              git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > "$notes"
+            fi
+          fi
+          echo "피드 노트 ${#INPUT_NOTES}자(입력), 파일 $(wc -c < "$notes") 바이트"
+
+      # `--app-version` 은 서명의 신뢰 주석에 버전을 넣는다(앱의 requireSignedVersion 이 요구).
+      # CLI 버전은 package.json 의 @tauri-apps/cli 와 같게 고정한다(올릴 때는 두 곳을 함께 바꾼다). 비밀번호가 비어 있어도
+      # 입력을 기다리지 않도록 표준 입력을 닫는다. 결과는 설치본 옆의 <설치본>.sig 다.
+      - name: 설치본 서명
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx --yes @tauri-apps/cli@2.12.4 signer sign --app-version "$VERSION" "release-tauri/Peekaboo-Setup-${VERSION}-x64.exe" </dev/null
+
+      # 서명이 공개키·설치본·버전과 맞는지 검증하고 latest.json 을 만든다. 하나라도 어긋나면 실패한다.
+      - name: 업데이터 피드(latest.json) 생성
+        env:
+          MSYS_NO_PATHCONV: "1"
+        run: |
+          notes="$RUNNER_TEMP/feed_notes.txt"
+          if [ -s "$notes" ]; then
+            node scripts/update-feeds.mjs --version "$VERSION" --notes-file "$notes"
+          else
+            node scripts/update-feeds.mjs --version "$VERSION"
+          fi
+          test -s release-tauri/latest.json
+          ls -la release-tauri
+
+      - name: 서명된 설치본 업로드
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-signed
           path: |
-            release/*.exe
-            release/latest.yml
-            release/*.blockmap
+            release-tauri/Peekaboo-Setup-*-x64.exe
+            release-tauri/Peekaboo-Setup-*-x64.exe.sig
+            release-tauri/latest.json
           if-no-files-found: error
 
   # ── 릴리스 발행 ─────────────────────────────────────────────────────
   release:
     name: 릴리스 발행
-    needs: build
+    needs: [build, sign]
     # 태그 push 이거나 재사용 호출일 때만 발행한다(수동 실행은 태그에서 돌려도 빌드 점검만)
     if: github.event_name == 'push' || inputs.version
     runs-on: ubuntu-latest
@@ -147,17 +270,17 @@ jobs:
           # 재사용 호출만 태그를 push 해야 해서 자격 증명이 필요하다
           persist-credentials: ${{ inputs.version && 'true' || 'false' }}
 
-      - name: 설치본 아티팩트 다운로드
+      # 서명 잡의 산출물만 받는다: 설치본(.exe), 서명(.exe.sig), 업데이터 피드(latest.json)
+      - name: 서명된 설치본 다운로드
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: installers-*
+          name: release-signed
           path: installers
-          merge-multiple: true
 
-      - name: 첨부할 설치본 목록
+      - name: 첨부할 파일 목록
         run: ls -la installers
 
-      # 재사용 호출: 빌드가 성공한 지금에서야 annotated 태그를 만든다(노트 = 태그 메시지).
+      # 재사용 호출: 빌드·서명이 성공한 지금에서야 annotated 태그를 만든다(노트 = 태그 메시지).
       # 노트는 커밋 제목에서 만든 문자열이라 셸에 직접 끼워 넣지 않고 환경 변수로 넘긴다.
       - name: 태그 만들기·push (재사용 호출)
         if: inputs.version
@@ -165,8 +288,18 @@ jobs:
           NOTES: ${{ inputs.notes }}
           SHA: ${{ inputs.sha }}
         run: |
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "::error::$TAG 태그가 이미 있습니다"
+          # 발행할 파일 세 가지가 다 있는지 태그를 만들기 전에 확인한다(태그만 남는 경우를 줄인다)
+          for f in "installers/Peekaboo-Setup-${TAG#v}-x64.exe" "installers/Peekaboo-Setup-${TAG#v}-x64.exe.sig" installers/latest.json; do
+            test -s "$f" || { echo "::error::$f 가 없습니다"; exit 1; }
+          done
+          # 같은 커밋을 가리키는 태그가 이미 있으면(이 잡을 다시 실행한 경우) 그대로 쓰고, 다른 커밋이면 실패한다
+          git fetch -q --force origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            if [ "$(git rev-list -n1 "$TAG")" = "$SHA" ]; then
+              echo "$TAG 태그가 이미 같은 커밋에 있어 그대로 씁니다(재실행)"
+              exit 0
+            fi
+            echo "::error::$TAG 태그가 이미 다른 커밋에 있습니다"
             exit 1
           fi
           printf '%s\n' "$NOTES" > tag_message.md
@@ -191,7 +324,7 @@ jobs:
             echo "fallback=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # 초안으로 만들고 파일을 다 올린 뒤 공개한다 — 공개된 Release 에 latest.yml·설치본이 아직 없는 틈에
+      # 초안으로 만들고 파일을 다 올린 뒤 공개한다 — 공개된 Release 에 latest.json·설치본이 아직 없는 틈에
       # 앱이 업데이트를 확인하면 404 로 실패하기 때문
       - name: 릴리스 생성(초안) + 설치본 첨부
         id: gh_release
@@ -202,11 +335,13 @@ jobs:
           body_path: release_notes.md
           generate_release_notes: ${{ steps.notes.outputs.fallback == 'true' }}
           draft: true
-          # 하이픈이 든 태그(v0.3.0-beta.1)는 프리릴리스로 표시 — 앱은 프리릴리스를 쓰는 경우에만 프리릴리스로 업데이트한다
+          # 하이픈이 든 태그(v1.1.0-beta.1)는 프리릴리스로 표시 — releases/latest(업데이터 피드)에 잡히지 않는다
           prerelease: ${{ contains(env.TAG, '-') }}
           fail_on_unmatched_files: true
           files: |
-            installers/*
+            installers/Peekaboo-Setup-*-x64.exe
+            installers/Peekaboo-Setup-*-x64.exe.sig
+            installers/latest.json
 
       # 초안은 태그 이름으로 조회되지 않을 수 있어 생성 단계가 돌려준 id 로 공개한다
       - name: 릴리스 공개

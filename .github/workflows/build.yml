@@ -73,7 +73,7 @@ jobs:
       - name: Rust 툴체인 설정
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          # 툴체인을 고정한다(새 stable 의 clippy 규칙 추가로 PR 과 무관하게 CI 가 깨지는 것을 막는다). 올릴 때는 이 값만 바꾼다.
+          # 툴체인을 고정한다(새 stable 의 clippy 규칙 추가로 PR 과 무관하게 CI 가 깨지는 것을 막는다). 올릴 때는 release.yml·tauri-build.yml 과 함께 세 곳을 바꾼다.
           toolchain: 1.100.0
           components: rustfmt, clippy
 
