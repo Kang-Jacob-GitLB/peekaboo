@@ -6,9 +6,17 @@ name: tauri-build
 # (파일이 없으면 업데이터 없는 빌드), 설치본만 아티팩트로 올린다. 서명은 별도 sign 잡이 한다: 저장소 시크릿
 # TAURI_SIGNING_PRIVATE_KEY(비밀번호를 걸었으면 + _PASSWORD)를 이 잡만 받아 `tauri signer sign` 으로 설치본에 서명하고, 서명을 검증한 뒤 latest.json 을 만든다.
 # 빌드 단계의 의존성 설치·컴파일 코드가 개인키를 볼 수 없게 하려는 것이다. 시크릿이 없으면 sign 잡은 아무것도 서명하지 않고 끝난다.
-# 어느 쪽이든 아티팩트만 올리고 릴리스에는 발행하지 않는다. 발행은 M7 에서 release.yml 이 한다.
+# 기본은 아티팩트만 올리고 릴리스에는 발행하지 않는다. 정식 발행은 M7 에서 release.yml 이 한다.
+# M6 베타: prerelease_tag(예: v1.0.0-beta.1)를 주면 그 버전으로 빌드·서명하고 GitHub 프리릴리스로 게시한다(publish 잡).
+# 프리릴리스는 releases/latest 에 잡히지 않아 Electron 사용자(allowPrerelease=false)와 업데이터 피드에 영향이 없다.
+# GITHUB_TOKEN 으로 만든 태그는 다른 워크플로를 깨우지 않으므로 release.yml(Electron 빌드)도 돌지 않는다.
 on:
   workflow_dispatch:
+    inputs:
+      prerelease_tag:
+        description: "베타로 게시할 프리릴리스 태그(예: v1.0.0-beta.1). 비우면 아티팩트만 만든다"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -61,6 +69,18 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
 
+      # prerelease_tag 가 있으면 그 버전으로 빌드한다(tauri.conf.json·설치본 이름·피드가 package.json 의 version 을 쓴다).
+      # 입력은 env 로만 넘기고, 프리릴리스 꼴(vX.Y.Z-alpha|beta|rc.N)만 받는다.
+      - name: 버전 설정
+        if: inputs.prerelease_tag != ''
+        env:
+          TAG: ${{ inputs.prerelease_tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
+            echo "프리릴리스 태그 꼴이 아닙니다: $TAG (예: v1.0.0-beta.1)" >&2; exit 1
+          fi
+          npm pkg set "version=${TAG#v}"
+
       # helper:build → 헬퍼 복사 → 렌더러 빌드 → tauri build(NSIS, cargo 에 `--locked`) → 설치본 이름 변경(release-tauri/)
       # 이 잡에는 서명 시크릿을 주지 않는다. 공개키(src-tauri/updater.pub)가 있으면 scripts/tauri-build.mjs 가 업데이터 설정만 얹고
       # 설치본 서명(createUpdaterArtifacts)은 만들지 않는다(CI 환경 변수로 판단). 엔드포인트는 기본(GitHub 릴리스) 외에는 거부한다.
@@ -105,6 +125,18 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
+
+      # prerelease_tag 가 있으면 그 버전으로 빌드한다(tauri.conf.json·설치본 이름·피드가 package.json 의 version 을 쓴다).
+      # 입력은 env 로만 넘기고, 프리릴리스 꼴(vX.Y.Z-alpha|beta|rc.N)만 받는다.
+      - name: 버전 설정
+        if: inputs.prerelease_tag != ''
+        env:
+          TAG: ${{ inputs.prerelease_tag }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
+            echo "프리릴리스 태그 꼴이 아닙니다: $TAG (예: v1.0.0-beta.1)" >&2; exit 1
+          fi
+          npm pkg set "version=${TAG#v}"
 
       - name: 설치본 아티팩트 다운로드
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -153,3 +185,53 @@ jobs:
             release-tauri/latest.json
           if-no-files-found: error
           retention-days: 7
+
+  # M6 베타 게시. 서명·피드 검증을 통과한 산출물만 프리릴리스로 올린다. 이 잡만 contents: write 를 받는다.
+  publish:
+    name: 베타 프리릴리스 게시
+    needs: sign
+    if: inputs.prerelease_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 서명된 설치본 다운로드
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: peekaboo-tauri-signed
+          path: release-tauri
+
+      - name: 태그 중복 확인
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.prerelease_tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "태그가 이미 있습니다: $TAG" >&2; exit 1
+          fi
+
+      # 초안으로 파일을 다 올린 뒤 공개한다(release.yml 과 같은 이유). 태그는 이 실행의 커밋에 만든다.
+      - name: 프리릴리스 생성(초안)
+        id: gh_release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ inputs.prerelease_tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ inputs.prerelease_tag }} (Tauri 베타)
+          body: |
+            Tauri 2 로 옮긴 베타입니다. 설치하면 기존 Electron Peekaboo(사용자별 설치본)를 제거하고 설정·시작 시 실행을 이어받습니다.
+            자동 업데이트는 정식 릴리스만 받습니다. 되돌리려면 설정 > 앱에서 Peekaboo 를 제거한 뒤 Electron 정식 릴리스 설치본을 설치합니다.
+          generate_release_notes: false
+          draft: true
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            release-tauri/Peekaboo-Setup-*-x64.exe
+            release-tauri/Peekaboo-Setup-*-x64.exe.sig
+            release-tauri/latest.json
+
+      - name: 프리릴리스 공개
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.gh_release.outputs.id }}
+        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -F prerelease=true --jq '.html_url'

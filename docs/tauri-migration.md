@@ -146,7 +146,7 @@ isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의
 | **M3** 헬퍼·창 동작 | supervisor·native bridge, `PreviewWindow` 상태 기계, 복사 2종, FrameNavigationStarting, ProcessFailed, 가속키 끄기 | GUI 체크리스트(사용자가 PC 를 쓰지 않을 때만), `shown in`/`rendered` 지연을 Electron 과 비교 |
 | **M4** 트레이·설정·패키징 | 트레이, 설정, Run 키, 로그, single-instance, `externalBin`, NSIS `currentUser`, 별도 수동 워크플로 `tauri-build.yml`(릴리스 파이프라인과 분리, 발행 안 함) | 깨끗한 계정에 아티팩트 설치 |
 | **M5** 업데이터·옛 버전 제거 | `tauri-plugin-updater`, `src-tauri/windows/hooks.nsh`(6절), `latest.json` 생성(`scripts/update-feeds.mjs`), 서명 키 시크릿 | 옛 Electron 버전 3개(0.2.0, 중간, 최신) 위에 Tauri 설치본 설치 리허설, Tauri → Tauri 업데이트는 로컬 서버로(`docs/tauri-rehearsal.md`, Windows Sandbox 에서만) |
-| **M6** 베타 | 프리릴리스 태그를 수동 발행, 테스터가 직접 설치(Electron 사용자는 `allowPrerelease=false` 라 받지 않음, `updater.ts:54`) | 1~2주 실사용: 포커스 회귀, Office 핸들러, 메모리 |
+| **M6** 베타 | 프리릴리스 태그를 수동 발행(`gh workflow run tauri-build.yml -f prerelease_tag=v1.0.0-beta.1`: 빌드·서명·피드 검증 뒤 프리릴리스로 게시), 테스터가 직접 설치(Electron 사용자는 `allowPrerelease=false` 라 받지 않음, `updater.ts:54`) | 1~2주 실사용: 포커스 회귀, Office 핸들러, 메모리 |
 | **M7** 전환 | `feat!: Tauri 2 로 전환`. `release.yml` 기본 빌드를 Tauri 로, README·CLAUDE.md 갱신 | 사람이 지켜보는 시간에 `gh workflow run nightly-release.yml` |
 | **M8** 정리 | `src/main`, `src/preload`, `electron-builder.yml`, `electron.vite.config.ts`, electron 의존성 제거 | typecheck, build, cargo test |
 
