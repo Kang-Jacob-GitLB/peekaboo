@@ -3,8 +3,8 @@ name: tauri-build
 # Tauri 설치본(NSIS) 시험 빌드. 수동 실행 전용이며 릴리스·태그를 만들지 않는다(전환 계획 docs/tauri-migration.md M4).
 # 릴리스 파이프라인(release.yml, nightly-release.yml)과 분리돼 있어 Electron 릴리스에 영향이 없다.
 # 업데이트 서명(M5, 빌드와 서명 분리): 빌드 잡(installer)은 서명 개인키를 받지 않는다. 공개키는 저장소의 src-tauri/updater.pub 에서만 읽고
-# (파일이 없으면 업데이터 없는 빌드), 설치본만 아티팩트로 올린다. 서명은 별도 sign 잡이 한다: Environment "release" 에 등록한 시크릿
-# TAURI_SIGNING_PRIVATE_KEY(+ _PASSWORD)를 이 잡만 받아 `tauri signer sign` 으로 설치본에 서명하고, 서명을 검증한 뒤 latest.json 을 만든다.
+# (파일이 없으면 업데이터 없는 빌드), 설치본만 아티팩트로 올린다. 서명은 별도 sign 잡이 한다: 저장소 시크릿
+# TAURI_SIGNING_PRIVATE_KEY(비밀번호를 걸었으면 + _PASSWORD)를 이 잡만 받아 `tauri signer sign` 으로 설치본에 서명하고, 서명을 검증한 뒤 latest.json 을 만든다.
 # 빌드 단계의 의존성 설치·컴파일 코드가 개인키를 볼 수 없게 하려는 것이다. 시크릿이 없으면 sign 잡은 아무것도 서명하지 않고 끝난다.
 # 어느 쪽이든 아티팩트만 올리고 릴리스에는 발행하지 않는다. 발행은 M7 에서 release.yml 이 한다.
 on:
@@ -92,9 +92,7 @@ jobs:
     # 시크릿은 `if:` 에서 쓸 수 없어 잡 수준에서는 공개키 파일 유무(빌드 잡의 출력)로만 거른다. 시크릿 유무는 첫 단계에서 본다.
     if: needs.installer.outputs.updater == 'true'
     runs-on: windows-latest
-    # 서명 개인키는 Environment "release" 의 시크릿으로만 둔다. Environment 에서 배포 브랜치를 main 으로 제한하거나 승인자를 두면
-    # 임의 브랜치에서 돌린 이 워크플로가 키를 읽지 못한다.
-    environment: release
+    # 서명 개인키는 저장소 시크릿이다(개인 프로젝트라 승인 Environment 는 두지 않는다, 2026-11-16 사용자 결정).
     defaults:
       run:
         shell: bash

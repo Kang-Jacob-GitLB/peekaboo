@@ -31,7 +31,7 @@
 | WebView2 런타임 | 설치기 포함(`embedBootstrapper`), 2026-11-16 사용자 결정 — 이유: 기본 NSIS 템플릿이 내려받은 부트스트래퍼를 서명 확인 없이 실행 |
 | Electron → Tauri 업데이트 브리지 | **두지 않음.** 사용자가 직접 설치, 설치기가 옛 버전 제거 |
 | 알림 클릭으로 업데이트 설치 | 포기. 알림은 안내만 하고 트레이 "다시 시작하여 업데이트"로 설치 |
-| 업데이터 서명 키 | GitHub Actions 시크릿 + 오프라인 백업. 키 생성은 저장소 관리자가 직접 |
+| 업데이터 서명 키 | 비밀번호 없는 키 하나를 저장소 시크릿으로(승인 Environment 없음), 키 파일은 복사본 하나만 보관. 2026-11-16 사용자 결정 — 이유: 개인 프로젝트·개인 사용. 키 생성은 저장소 관리자가 직접 |
 | 미정(해당 단계에서 결정) | `%APPDATA%\Peekaboo` 의 Chromium 캐시 잔재 삭제, "모든 사용자" 설치본 처리, 베타 채널, 헬퍼 Rust 재작성 여부 |
 
 ## 2. Electron 의존 지점
@@ -198,8 +198,8 @@ Tauri 는 WebView2 브라우저 인자를 쓴다. Tauri 의 `additional_browser_
 - **`build.yml`**: 필수 체크 job 이름 `Typecheck · Build` 를 유지하고 같은 job 에 Rust 툴체인·캐시(SHA 고정), `npm run build:web:tauri`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --locked` 를 추가한다. job 을 나누면 룰셋의 required check 를 바꿔야 한다. PR 시간은 콜드 캐시 +8~15분, 웜 캐시 +2~5분으로 추정.
 - **`release.yml`**: `npm pkg set version` 유지, `tauri.conf.json` 의 `version` 이 `../package.json` 을 가리키게 하고 `Cargo.toml` 은 `0.0.0` 고정. 헬퍼 산출물을 `src-tauri/binaries/peekaboo-helper-x86_64-pc-windows-msvc.exe` 로 복사, `npx tauri build --bundles nsis`, 서명 키는 시크릿 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`). 산출물 이름 `Peekaboo-Setup-${version}-x64.exe` 유지. 메타데이터 확인 단계는 `latest.json`(버전, 서명, URL) 검사로 바꾼다.
 - **`nightly-release.yml`**: 변경 없음.
-- **M5 에서 구현된 것**: `tauri-build.yml`(수동)은 **빌드와 서명을 두 잡으로 나눈다.** 빌드 잡(`installer`)은 서명 개인키를 받지 않고(`CI` 환경에서 `scripts/tauri-build.mjs` 는 서명 산출물을 만들지 않고 기본 엔드포인트 외를 거부한다), 저장소의 공개키 파일 `src-tauri/updater.pub` 이 있을 때만 업데이터 설정을 얹어 설치본을 아티팩트로 올린다. 서명은 `sign` 잡(`needs: installer`, `environment: release`)만 한다: Environment 시크릿 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`)를 환경 변수로 받아 `npx --yes @tauri-apps/cli@2.12.4 signer sign --app-version <버전> <설치본>` 한 번으로 서명하고, `scripts/update-feeds.mjs` 가 서명을 공개키·설치본·버전과 대조해 검증한 뒤 `latest.json` 을 만든다. `updater.pub` 가 없으면 `sign` 잡은 건너뛰고, 시크릿이 없으면(포크 등) 서명 단계만 건너뛴다. 발행은 하지 않는다. `release.yml` 변경은 M7.
-- **서명**: 업데이터 minisign 키는 필수이고 끌 수 없다. **키를 잃으면 기존 Tauri 설치본은 다시는 자동 업데이트를 받지 못한다.** 시크릿 + 오프라인 백업. Authenticode 는 지금처럼 없다.
+- **M5 에서 구현된 것**: `tauri-build.yml`(수동)은 **빌드와 서명을 두 잡으로 나눈다.** 빌드 잡(`installer`)은 서명 개인키를 받지 않고(`CI` 환경에서 `scripts/tauri-build.mjs` 는 서명 산출물을 만들지 않고 기본 엔드포인트 외를 거부한다), 저장소의 공개키 파일 `src-tauri/updater.pub` 이 있을 때만 업데이터 설정을 얹어 설치본을 아티팩트로 올린다. 서명은 `sign` 잡(`needs: installer`)만 한다: 저장소 시크릿 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`)를 환경 변수로 받아 `npx --yes @tauri-apps/cli@2.12.4 signer sign --app-version <버전> <설치본>` 한 번으로 서명하고, `scripts/update-feeds.mjs` 가 서명을 공개키·설치본·버전과 대조해 검증한 뒤 `latest.json` 을 만든다. `updater.pub` 가 없으면 `sign` 잡은 건너뛰고, 시크릿이 없으면(포크 등) 서명 단계만 건너뛴다. 발행은 하지 않는다. `release.yml` 변경은 M7.
+- **서명**: 업데이터 minisign 키는 필수이고 끌 수 없다. **키를 잃으면 기존 Tauri 설치본은 다시는 자동 업데이트를 받지 못한다.** 키 파일 복사본을 하나 보관한다(잃으면 새 키로 바꾼 버전을 한 번 수동 설치). Authenticode 는 지금처럼 없다.
 - **로컬 개발**: README "필요한 도구"에 Rust(MSVC) 추가.
 
 ## 6. 기존 Electron 사용자 이전
@@ -232,7 +232,7 @@ Tauri NSIS 는 설치 경로(`%LOCALAPPDATA%\Peekaboo`)와 제거 키(`HKCU\…\
 - "종료"로 설치할 때는 `restart_after_install(false)` 라 다시 실행하지 않는다. 설치본을 실행한 뒤 플러그인이 `std::process::exit(0)` 을 부르므로 `RunEvent::Exit` 가 오지 않아, 플러그인의 `on_before_exit` 훅에서 헬퍼를 먼저 내린다. 플러그인의 순서는 압축 풀기 → `on_before_exit` → `ShellExecuteW` → `exit(0)` 이다(`updater.rs:1017-1047`). **훅이 돈 뒤 `ShellExecuteW` 가 실패하면** 헬퍼가 내려가고 앱 정리까지 끝난 앱이 남으므로, 훅에서 세운 플래그로 알아내 "다시 시작하여 업데이트"는 `app.restart()`, "종료"는 `app.exit(0)` 으로 복구한다(서명 검증 실패 등 훅 전의 오류는 앱이 멀쩡해 그대로 둔다).
 - 디버그 빌드, 버전 `0.0.0`(`0.0.0-*`), 서명 공개키가 없는 빌드는 업데이트를 켜지 않는다(플러그인도 등록하지 않는다 — 등록하면 설정에 `endpoints`·`pubkey` 가 있어야 앱이 시작된다).
 - **공개키는 저장소의 `src-tauri/updater.pub` 파일**(공개 값, 커밋한다)에서만 읽는다. 저장소의 `tauri.conf.json` 에는 `plugins.updater` 도 `createUpdaterArtifacts` 도 없고, `npm run dist:tauri` 가 `scripts/tauri-build.mjs` 로 파일이 있을 때만 `release-tauri/updater.conf.json`(공개키·엔드포인트·passive·`requireSignedVersion`)을 만들어 `tauri build --config` 로 얹는다. **파일이 없으면 업데이터 없는 빌드**다. 개인키로 서명된 설치본이 필요한 로컬 빌드는 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`)가 있을 때만 `createUpdaterArtifacts` 를 켜 한 번에 서명하고, CI 는 항상 서명을 `sign` 잡으로 분리한다. 개인키·비밀번호는 저장소에 두지 않는다.
-  - 키 만들기(한 번): `npx tauri signer generate -w <안전한 경로>\peekaboo-updater.key`(비밀번호를 정한다). 공개키 파일 `<…>.key.pub` 를 `src-tauri/updater.pub` 로 복사해 커밋한다. 개인키는 오프라인 백업하고 `gh secret set TAURI_SIGNING_PRIVATE_KEY --env release < <개인키 파일>`(표준 입력으로, 명령줄에 싣지 않는다), `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --env release` 로 Environment `release` 시크릿에 넣는다(Environment 는 저장소 설정 > Environments 에서 먼저 만들고 배포 브랜치를 `main` 으로 제한한다).
+  - 키 만들기(한 번): `npx tauri signer generate -w <경로>\peekaboo-updater.key`(비밀번호 프롬프트는 Enter 로 비운다). 공개키 파일 `<…>.key.pub` 를 `src-tauri/updater.pub` 로 복사해 커밋한다. 개인키는 `gh secret set TAURI_SIGNING_PRIVATE_KEY < <개인키 파일>`(표준 입력으로, 명령줄에 싣지 않는다)로 저장소 시크릿에 넣는다. 비밀번호를 걸었다면 `gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD` 도 넣는다.
   - `update-feeds.mjs` 는 피드를 쓰기 전에 서명을 직접 검증한다(`scripts/updater-sig.mjs`): `.sig` 의 키 ID 가 `updater.pub` 와 같은지, 설치본에 대한 Ed25519 서명(minisign `ED` = BLAKE2b-512 프리해시)이 맞는지, 전역 서명이 신뢰 주석을 덮는지, 그 안의 `version:` 이 릴리스 버전과 정확히 같은지. 하나라도 어긋나면 중단한다.
 - 서명 설정에 `requireSignedVersion: true` 를 넣는다. 피드(`latest.json`)는 서명되지 않아, 없으면 피드를 바꿔치는 쪽이 새 버전 번호에 옛(유효하게 서명된) 설치본을 붙여 다운그레이드시킬 수 있다. tauri CLI 가 만드는 서명의 신뢰 주석에는 `version:` 이 들어 있다(실제 빌드의 `.sig` 로 확인).
 - JS 에는 업데이터·알림 권한을 주지 않는다(`capabilities/preview.json` 에 `updater:*`·`notification:*` 없음). 플러그인이 등록하는 JS 커맨드는 ACL 에 막힌다.
