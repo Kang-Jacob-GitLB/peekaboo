@@ -1,4 +1,4 @@
-// electron.vite.config.ts 와 vite.tauri.config.ts 가 함께 쓰는 렌더러 빌드 설정.
+// vite.config.ts 가 쓰는 렌더러 빌드 플러그인. CSP 는 index.html 이 아니라 tauri.conf.json 의 app.security.csp 가 응답 헤더로 준다.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { resolve, join, extname } from 'node:path'
@@ -31,28 +31,6 @@ export function pdfjsAssets(): Plugin {
           this.emitFile({ type: 'asset', fileName: `pdfjs/${dir}/${name}`, source: readFileSync(join(pdfjsRoot, dir, name)) })
         }
       }
-    }
-  }
-}
-
-/** 빌드 대상. 렌더러 코드는 `import.meta.env.VITE_HOST` 로 어댑터를 고른다(host/index.ts). */
-export type HostKind = 'electron' | 'tauri'
-
-/** VITE_HOST 를 컴파일 타임 상수로 박아, 고르지 않은 쪽 어댑터가 번들에서 빠지게 한다. */
-export function hostDefine(host: HostKind): Record<string, string> {
-  return { 'import.meta.env.VITE_HOST': JSON.stringify(host) }
-}
-
-/**
- * index.html 의 CSP <meta> 를 뺀다. Tauri 는 tauri.conf.json 의 app.security.csp 를 응답 헤더로 주므로
- * (peek 출처가 http://peek.localhost 라 Electron 의 meta 와 값도 다르다) meta 가 남아 있으면 둘이 겹쳐 제한만 늘어난다.
- */
-export function stripCspMeta(): Plugin {
-  return {
-    name: 'peekaboo:strip-csp-meta',
-    transformIndexHtml: {
-      order: 'pre',
-      handler: (html) => html.replace(/\s*<meta\s+http-equiv="Content-Security-Policy"[^>]*>/i, '')
     }
   }
 }

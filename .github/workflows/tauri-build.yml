@@ -63,10 +63,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Tauri 빌드에는 Electron 바이너리가 필요 없어 받지 않는다
       - name: 의존성 설치
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: npm ci
 
       # prerelease_tag 가 있으면 그 버전으로 빌드한다(tauri.conf.json·설치본 이름·피드가 package.json 의 version 을 쓴다).
@@ -85,7 +82,7 @@ jobs:
       # 이 잡에는 서명 시크릿을 주지 않는다. 공개키(src-tauri/updater.pub)가 있으면 scripts/tauri-build.mjs 가 업데이터 설정만 얹고
       # 설치본 서명(createUpdaterArtifacts)은 만들지 않는다(CI 환경 변수로 판단). 엔드포인트는 기본(GitHub 릴리스) 외에는 거부한다.
       - name: 설치본 빌드
-        run: npm run dist:tauri
+        run: npm run dist
 
       # sign 잡을 돌릴지 정한다(공개키 파일이 없으면 업데이터 없는 빌드라 서명할 것이 없다)
       - name: 업데이터 공개키 확인

@@ -1,5 +1,5 @@
 // C# 헬퍼(helper/) 프로세스 연결. Electron 의 src/main/helper-supervisor.ts 와 같은 의미다.
-// 프로토콜은 docs/ipc.md(JSON Lines v1), 타입은 src/shared/ipc-types.ts · helper/Ipc/Messages.cs 와 맞춘다.
+// 프로토콜은 docs/ipc.md(JSON Lines v1), 타입은 helper/Ipc/Messages.cs 와 맞춘다.
 //
 // 이 파일의 앞부분(메시지 타입·줄 파싱·백오프·ping 판정·경로 후보)은 프로세스와 무관한 순수 로직이라 cargo test 로 검증하고,
 // 뒷부분(Helper)이 tokio::process 로 헬퍼를 띄우고 감시한다. 헬퍼를 새로 띄우면 `ready` 가 오므로 소비자는 그때

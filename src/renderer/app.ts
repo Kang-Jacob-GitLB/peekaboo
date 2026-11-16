@@ -24,7 +24,7 @@ const main = $('main')
 // 다른 앱으로 전환한 뒤에도 닫을 수 있게(비포커스 창도 클릭은 받는다)
 $('.h-close').addEventListener('click', () => host.close())
 
-// 헤더로 창을 옮긴다. Electron 은 CSS(-webkit-app-region)가 하고, 호스트가 startDrag 를 주면(Tauri) 헤더의 왼쪽 버튼 mousedown 에서 부른다.
+// 헤더로 창을 옮긴다. 호스트가 startDrag 를 주면 헤더의 왼쪽 버튼 mousedown 에서 부른다.
 const startDrag = host.startDrag?.bind(host)
 if (startDrag) {
   document.documentElement.dataset.windowDrag = 'script'
@@ -168,7 +168,7 @@ host.onHide(() => teardown())
 
 // ---- 텍스트 선택과 Ctrl+C 복사 ----
 // 창이 포커스를 갖지 않아 Ctrl+C 는 탐색기로 간다. 선택이 있는 동안만 헬퍼가 Ctrl+C 를 가로채도록 선택 여부를 알리고,
-// 가로챈 Ctrl+C 는 main 이 onCopyRequest 로 선택한 텍스트를 받아 클립보드에 쓴다.
+// 가로챈 Ctrl+C 는 호스트가 onCopyRequest 로 선택한 텍스트를 받아 클립보드에 쓴다.
 // HTML 미리보기 iframe(allow-same-origin)의 문서는 선택을 따로 가지므로 iframe 이 로드될 때 같이 구독한다.
 const selectionDocs = new Set<Document>()
 let lastSelectionDoc: Document | null = null
@@ -224,7 +224,7 @@ host.onCopyRequest(() => {
   return doc?.getSelection()?.toString() ?? ''
 })
 
-// 복사 알림(복사 자체는 main 이 한다)
+// 복사 알림(복사 자체는 호스트가 한다)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 host.onCopied((info) => {
   let toast = document.querySelector<HTMLElement>('.toast')

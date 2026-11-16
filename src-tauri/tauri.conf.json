@@ -5,7 +5,7 @@
   "version": "../package.json",
   "identifier": "io.github.kang-jacob-gitlb.peekaboo",
   "build": {
-    "frontendDist": "../out/renderer-tauri"
+    "frontendDist": "../out/renderer"
   },
   "app": {
     "windows": [],

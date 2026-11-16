@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Tauri 업데이터 피드(latest.json)를 만든다. `npm run dist:tauri` 를 서명 키와 함께 돌려 `release-tauri/` 에 나온
+// Tauri 업데이터 피드(latest.json)를 만든다. `npm run dist` 를 서명 키와 함께 돌려 `release-tauri/` 에 나온
 // 설치본(Peekaboo-Setup-<버전>-x64.exe)과 그 서명(.exe.sig)이 입력이다.
 //   {version, notes, pub_date, platforms: {"windows-x86_64": {signature, url}}}
 // url 은 GitHub 릴리스 자산 주소다. 서명(.sig 파일의 내용 그대로)이 비어 있으면 업데이터가 설치본을 거부하므로 여기서 실패한다.
@@ -71,7 +71,7 @@ function main() {
   const dir = resolve(root, args.dir ?? 'release-tauri')
   const sigPath = join(dir, `${installerName(version)}.sig`)
   if (!existsSync(sigPath)) {
-    throw new Error(`서명 파일이 없습니다: ${sigPath}\n서명 잡(tauri signer sign)이나 개인키가 있는 로컬 빌드(npm run dist:tauri)가 만든 .sig 가 필요합니다.`)
+    throw new Error(`서명 파일이 없습니다: ${sigPath}\n서명 잡(tauri signer sign)이나 개인키가 있는 로컬 빌드(npm run dist)가 만든 .sig 가 필요합니다.`)
   }
   const installerPath = join(dir, installerName(version))
   if (!existsSync(installerPath)) throw new Error(`설치본이 없습니다: ${installerPath}`)

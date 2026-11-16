@@ -1,8 +1,8 @@
 // 골든 비교용 픽스처 생성기. 결정적이라 매번 같은 바이트가 나온다.
 // zip·tar 를 직접 조립하므로 실제 압축 도구가 만들지 않는 경계 입력(위장 Unicode Path, SFX, 잘린 파일 등)도 만들 수 있다.
 //
-// test/fixtures/expected/*.json 은 이 파일의 픽스처를 이 PR 이 지우는 Node 구현(88fd827 의
-// src/main/file-service.ts·tar-list.ts)에 TZ=UTC 로 돌려 얻은 출력이다. 렌더러 구현이 그 JSON 과 같아야 한다.
+// test/fixtures/expected/*.json 은 이 파일의 픽스처를 옛 Node 구현(88fd827 의
+// src/main/file-service.ts·tar-list.ts, 이후 삭제)에 TZ=UTC 로 돌려 얻은 출력이다. 렌더러 구현이 그 JSON 과 같아야 한다.
 
 import { crc32, deflateRawSync, gzipSync } from 'node:zlib'
 

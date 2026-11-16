@@ -83,14 +83,15 @@ Markdown·HTML 의 제목, PDF 의 책갈피가 2개 이상이면 왼쪽에 목�
 ```powershell
 npm install
 npm run helper:build   # C# 헬퍼 → helper/publish/peekaboo-helper.exe
-npm run dist:tauri     # 설치 파일(Tauri, NSIS) → release-tauri/ — 릴리스와 같은 방식
-npm run dev            # Electron 개발 모드(이전 호스트, M8 에서 제거 예정)
-npm run dist           # Electron 설치 파일 → release/ (이전 호스트, M8 에서 제거 예정)
+npm run build          # 렌더러(TypeScript) → out/renderer (src-tauri 가 번들에 넣는다)
+npm run dist           # 설치 파일(Tauri, NSIS) → release-tauri/ — 릴리스와 같은 방식
+npm run typecheck && npm test                        # TypeScript 검사·시험
+cd src-tauri && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked   # Rust 검사·시험
 ```
 
 ### 단계별 확인 방법
 
-헬퍼만 단독으로 시험하기 (Electron 없이):
+헬퍼만 단독으로 시험하기 (호스트 없이):
 
 ```powershell
 npm run helper:console
@@ -98,11 +99,12 @@ npm run helper:console
 helper\publish\peekaboo-helper.exe --list   # 열린 탐색기 창·바탕화면의 선택을 한 번 출력
 ```
 
-미리보기 창만 시험하기 (키 입력 없이, 개발 모드 전용):
+미리보기 창만 시험하기 (키 입력 없이, 디버그 빌드 전용):
 
 ```powershell
 npm run build
-$env:PEEKABOO_PREVIEW = "C:\work\notes.md"; npx electron .
+cargo build --manifest-path src-tauri/Cargo.toml
+$env:PEEKABOO_HOTKEY = "0"; $env:PEEKABOO_PREVIEW = "C:\work\notes.md"; src-tauri\target\debug\peekaboo.exe
 ```
 
 PC 를 쓰는 중에도 확인하려면 `PEEKABOO_OFFSCREEN=1` 을 더합니다. 창이 모든 모니터 밖에 떠서 화면에 보이지 않고 포커스도 가져가지 않으며,
@@ -139,10 +141,9 @@ peekaboo-helper.exe (C# .NET 8) ── 키보드 훅 + 탐색기 선택 조회 (
 ```
 
 - `helper/` — Win32/COM 연동 헬퍼. 탐색기에 포커스가 있을 때 키 입력을 감지하고 선택된 파일 경로를 조회합니다.
-- `src/main/` — 이전 호스트인 Electron main(릴리스에는 쓰이지 않으며 M8 에서 제거 예정). 헬퍼 감시/재시작, 트레이, 로그, 미리보기 창 관리.
-- `src-tauri/` — 릴리스 호스트인 Tauri 2([전환 계획](docs/tauri-migration.md)): 트레이·설정·시작 시 실행·로그·단일 인스턴스·자동 업데이트, NSIS 패키징. 설치기 훅·업데이트 리허설 절차는 [docs/tauri-rehearsal.md](docs/tauri-rehearsal.md). 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
+- `src-tauri/` — 호스트인 Tauri 2([전환 기록](docs/tauri-migration.md)): 헬퍼 감시/재시작, 미리보기 창 관리, 트레이·설정·시작 시 실행·로그·단일 인스턴스·자동 업데이트, NSIS 패키징. 설치기 훅·업데이트 리허설 절차는 [docs/tauri-rehearsal.md](docs/tauri-rehearsal.md). 디버그 빌드는 `%APPDATA%\Peekaboo-dev` 를 데이터 폴더로 써서 설치된 Peekaboo 의 설정·로그를 건드리지 않습니다.
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 인터페이스를 구현하고 `registry.ts` 에 등록하면 새 포맷이 추가됩니다.
-- `src/renderer/host/` — 렌더러가 호스트(Tauri, 이전 Electron)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek://` Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
+- `src/renderer/host/` — 렌더러가 호스트(Tauri)에 접근하는 어댑터. 텍스트 디코딩과 압축 목록 해석(`file-ops/`)도 여기서 `peek` 프로토콜 Range 요청으로 바이트를 읽어 렌더러 안에서 합니다.
 
 로그는 `%APPDATA%\Peekaboo\logs\` 에 저장됩니다.
 
@@ -171,7 +172,6 @@ v0.1 골격 커밋(18fe705)까지는 MIT 로 공개됐으며, 이후 버전부�
 
 | 라이브러리 | 라이선스 |
 |---|---|
-| Electron (이전 호스트, 릴리스에는 쓰이지 않으며 M8 에서 제거 예정) | MIT |
 | pdf.js (pdfjs-dist) | Apache-2.0 |
 | SheetJS (xlsx) | Apache-2.0 |
 | mammoth | BSD-2-Clause |

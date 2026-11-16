@@ -51,7 +51,7 @@ export function create(): PreviewPlugin {
         ALLOW_DATA_ATTR: false,
       })
 
-      // 제한: main 은 현재 파일만 서빙하므로 상대 경로 이미지는 불러올 수 없다.
+      // 제한: peek 프로토콜은 현재 파일만 서빙하므로 상대 경로 이미지는 불러올 수 없다.
       // 깨진 아이콘 대신 대체 텍스트로 바꾼다. data: 이미지만 유지한다.
       frag.querySelectorAll('img').forEach((img) => {
         if (/^data:image\//i.test(img.getAttribute('src') ?? '')) return
@@ -76,7 +76,7 @@ export function create(): PreviewPlugin {
         viewTop: () => scroll.getBoundingClientRect().top,
       })
 
-      // 링크는 창을 이동시키지 않는다(main 도 차단하지만 렌더러에서 먼저 막는다).
+      // 링크는 창을 이동시키지 않는다(호스트도 메인 프레임 이동을 차단하지만 렌더러에서 먼저 막는다).
       const block = (e: Event) => {
         if ((e.target as Element | null)?.closest('a')) e.preventDefault()
       }

@@ -22,7 +22,7 @@ Tauri 설치기가 옛 Electron 설치본을 지우는 훅(`src-tauri/windows/ho
 
 - Electron: GitHub 릴리스의 `Peekaboo-Setup-<버전>-x64.exe`(예: v0.10.1). 계획서는 옛 버전 3개(0.2.0, 중간 하나, 최신)로 반복하라고 한다.
   `gh release download v0.10.1 -R Kang-Jacob-GitLB/peekaboo -p "Peekaboo-Setup-0.10.1-x64.exe" -D <폴더>`
-- Tauri: `tauri-build` 워크플로 아티팩트(`peekaboo-tauri-installer`) 또는 로컬에서 `npm run dist:tauri` 로 만든 `release-tauri\Peekaboo-Setup-<버전>-x64.exe`.
+- Tauri: `tauri-build` 워크플로 아티팩트(`peekaboo-tauri-installer`) 또는 로컬에서 `npm run dist` 로 만든 `release-tauri\Peekaboo-Setup-<버전>-x64.exe`.
 
 ```powershell
 # 호스트(이 PC)에서 — 폴더와 .wsb 만 만든다
@@ -80,7 +80,7 @@ powershell -NoProfile -Command {
   $env:PEEKABOO_UPDATER_ENDPOINT = 'http://127.0.0.1:8123/latest.json'
   foreach ($v in '0.1.0', '0.2.0') {
     npm pkg set version=$v
-    npm run dist:tauri
+    npm run dist
     Copy-Item "release-tauri\Peekaboo-Setup-$v-x64.exe*" D:\update-feed\
   }
 }

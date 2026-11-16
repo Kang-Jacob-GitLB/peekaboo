@@ -1,4 +1,6 @@
-// HTTP Range 헤더 해석(RFC 9110 14.1~14.2). electron 에 의존하지 않아 node --test 로 검사한다.
+// fake-fetch 가 peek 프로토콜 서버를 흉내 낼 때 쓰는 HTTP Range 헤더 해석(RFC 9110 14.1~14.2).
+// 실제 호스트의 해석은 src-tauri/src/peek.rs 의 parse_range 이고 cargo test 로 검증한다. 둘은 단일 정상 구간에서만 같고,
+// 역전·다중 구간은 다르게 처리한다(여기는 전체 응답, Rust 는 416). range-reader 는 단일 정상 구간만 보낸다.
 
 export type RangeResult =
   /** Range 가 없거나 해석할 수 없어(다중 범위 포함) 전체를 200 으로 돌려준다 */

@@ -1,6 +1,6 @@
 // Tauri 호스트: @tauri-apps/api 의 invoke/listen 으로 PeekabooApi 를 구현한다.
 // 대응하는 Rust 는 src-tauri/src/{commands,preview}.rs. 허용되는 커맨드·이벤트는 src-tauri/capabilities/preview.json 이 정한다.
-// 파일 해석은 Electron 과 같이 peek Range 요청 위에서 렌더러가 한다.
+// 파일 해석은 peek Range 요청 위에서 렌더러가 한다.
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'

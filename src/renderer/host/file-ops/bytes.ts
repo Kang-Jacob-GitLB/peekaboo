@@ -1,4 +1,4 @@
-// 바이트 처리 도구. main 의 Buffer·node:zlib 를 대신한다(렌더러에는 Node API 가 없다).
+// 바이트 처리 도구. Node 의 Buffer·zlib 대신 쓴다(렌더러에는 Node API 가 없다).
 // 상대 import 에 .ts 를 붙이는 것은 node --test 가 이 파일들을 직접 불러오기 때문이다.
 
 export function view(b: Uint8Array): DataView {
