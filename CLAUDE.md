@@ -11,9 +11,9 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
 
 - `helper/` — C# .NET 8 헬퍼(CsWin32). 키보드 훅(`Input/`), 탐색기 선택 조회·네이티브 미리보기 핸들러(`Shell/`).
   trimmed single-file `peekaboo-helper.exe` 로 publish 된다. 새 Win32 API 는 `NativeMethods.txt` 에 추가한다.
-- `src/main/` — Electron main. 헬퍼 감시(`helper-supervisor.ts`), 미리보기 창(`preview-window.ts`),
+- `src/main/` — 이전 호스트인 Electron main(릴리스에는 쓰이지 않으며 M8 에서 제거 예정). 헬퍼 감시(`helper-supervisor.ts`), 미리보기 창(`preview-window.ts`),
   `peek://` 프로토콜과 요청 차단(`protocol.ts`), 트레이, 자동 업데이트(`updater.ts`).
-- `src-tauri/` — Tauri 2 호스트(Electron 대체 작업 중, [docs/tauri-migration.md](docs/tauri-migration.md)). 아직 릴리스에는 쓰이지 않는다.
+- `src-tauri/` — 릴리스 호스트인 Tauri 2([docs/tauri-migration.md](docs/tauri-migration.md)). `release.yml` 이 이 설치본(build → sign → release)을 발행한다.
   `peek.rs`(프로토콜), `preview.rs`(창), `commands.rs`(렌더러 커맨드, ACL 은 `build.rs`·`capabilities/`).
   렌더러 어댑터는 `src/renderer/host/tauri.ts`, 빌드는 `vite.tauri.config.ts`(`npm run build:web:tauri`).
   트레이(`tray.rs`)·설정(`settings.rs`)·시작 시 실행 Run 키(`startup.rs`)·로그(`logger.rs`)·데이터 폴더(`appdata.rs`)는 Electron `src/main/` 의 `tray.ts`·`settings.ts`·`logger.ts` 와 의미가 같다(Run 키·데이터 폴더는 `settings.ts`·`logger.ts` 에서 옮겨 왔다).

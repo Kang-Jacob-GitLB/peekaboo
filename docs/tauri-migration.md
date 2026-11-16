@@ -1,7 +1,7 @@
 # Electron → Tauri 2 전환 계획
 
-> 상태: **진행 중**(2026-11-16). M0 판정(2·3번 제외)을 마쳤고 사용자 결정으로 전환을 계속한다("M0 판정 결과" 절).
-> M1~M4(헬퍼·네이티브 미리보기·창 동작·복사·WebView2 보호·트레이·설정·패키징)가 main 에 들어갔고, M5(업데이터·옛 Electron 설치본 정리 훅)가 구현됐다. Tauri 는 아직 배포하지 않는다.
+> 상태: **M7 반영됨**(2026-11-16, 정식 릴리스를 Tauri 로 전환). M8(Electron 코드 제거)이 남았다. M0 판정(2·3번 제외)을 마쳤고 사용자 결정으로 전환을 계속한다("M0 판정 결과" 절).
+> M1~M4(헬퍼·네이티브 미리보기·창 동작·복사·WebView2 보호·트레이·설정·패키징)가 main 에 들어갔고, M5(업데이터·옛 Electron 설치본 정리 훅)가 구현됐다. M6 베타(v1.0.0-beta.1)를 게시했고, M7 에서 `release.yml` 을 Tauri 로 바꿨다.
 > M5 의 설치기 훅·업데이트는 **Windows Sandbox 리허설을 아직 하지 않았다**(`docs/tauri-rehearsal.md`). 코드·NSIS 문법·업데이트 확인/내려받기/서명 검증(로컬 서버)까지만 확인했다.
 > 이 문서를 처음 쓸 때(2026-11-13)는 공식 문서(v2.tauri.app, docs.rs)·wry·tao 소스·Microsoft Learn 만 근거였고, 이후 실측으로 바뀐 내용은 해당 절에 표시했다.
 > 근거 표기 `파일:줄` 은 처음 쓴 시점(67710ca)의 저장소 기준이다.
@@ -147,7 +147,7 @@ isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의
 | **M4** 트레이·설정·패키징 | 트레이, 설정, Run 키, 로그, single-instance, `externalBin`, NSIS `currentUser`, 별도 수동 워크플로 `tauri-build.yml`(릴리스 파이프라인과 분리, 발행 안 함) | 깨끗한 계정에 아티팩트 설치 |
 | **M5** 업데이터·옛 버전 제거 | `tauri-plugin-updater`, `src-tauri/windows/hooks.nsh`(6절), `latest.json` 생성(`scripts/update-feeds.mjs`), 서명 키 시크릿 | 옛 Electron 버전 3개(0.2.0, 중간, 최신) 위에 Tauri 설치본 설치 리허설, Tauri → Tauri 업데이트는 로컬 서버로(`docs/tauri-rehearsal.md`, Windows Sandbox 에서만) |
 | **M6** 베타 | 프리릴리스 태그를 수동 발행(`gh workflow run tauri-build.yml -f prerelease_tag=v1.0.0-beta.1`: 빌드·서명·피드 검증 뒤 프리릴리스로 게시), 테스터가 직접 설치(Electron 사용자는 `allowPrerelease=false` 라 받지 않음, `updater.ts:54`) | 1~2주 실사용: 포커스 회귀, Office 핸들러, 메모리 |
-| **M7** 전환 | `feat!: Tauri 2 로 전환`. `release.yml` 기본 빌드를 Tauri 로, README·CLAUDE.md 갱신 | 사람이 지켜보는 시간에 `gh workflow run nightly-release.yml` |
+| **M7** 전환(반영됨) | `feat!: Tauri 2 로 전환`. `release.yml` 기본 빌드를 Tauri 로, README·CLAUDE.md 갱신 | 사람이 지켜보는 시간에 `gh workflow run nightly-release.yml` |
 | **M8** 정리 | `src/main`, `src/preload`, `electron-builder.yml`, `electron.vite.config.ts`, electron 의존성 제거 | typecheck, build, cargo test |
 
 ### M0 판정 항목
@@ -197,8 +197,9 @@ Tauri 는 WebView2 브라우저 인자를 쓴다. Tauri 의 `additional_browser_
 
 - **`build.yml`**: 필수 체크 job 이름 `Typecheck · Build` 를 유지하고 같은 job 에 Rust 툴체인·캐시(SHA 고정), `npm run build:web:tauri`, `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --locked` 를 추가한다. job 을 나누면 룰셋의 required check 를 바꿔야 한다. PR 시간은 콜드 캐시 +8~15분, 웜 캐시 +2~5분으로 추정.
 - **`release.yml`**: `npm pkg set version` 유지, `tauri.conf.json` 의 `version` 이 `../package.json` 을 가리키게 하고 `Cargo.toml` 은 `0.0.0` 고정. 헬퍼 산출물을 `src-tauri/binaries/peekaboo-helper-x86_64-pc-windows-msvc.exe` 로 복사, `npx tauri build --bundles nsis`, 서명 키는 시크릿 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`). 산출물 이름 `Peekaboo-Setup-${version}-x64.exe` 유지. 메타데이터 확인 단계는 `latest.json`(버전, 서명, URL) 검사로 바꾼다.
-- **`nightly-release.yml`**: 변경 없음.
+- **`nightly-release.yml`**: 재사용 호출에 `secrets: inherit` 만 더해 서명 키를 `release.yml` 로 넘긴다.
 - **M5 에서 구현된 것**: `tauri-build.yml`(수동)은 **빌드와 서명을 두 잡으로 나눈다.** 빌드 잡(`installer`)은 서명 개인키를 받지 않고(`CI` 환경에서 `scripts/tauri-build.mjs` 는 서명 산출물을 만들지 않고 기본 엔드포인트 외를 거부한다), 저장소의 공개키 파일 `src-tauri/updater.pub` 이 있을 때만 업데이터 설정을 얹어 설치본을 아티팩트로 올린다. 서명은 `sign` 잡(`needs: installer`)만 한다: 저장소 시크릿 `TAURI_SIGNING_PRIVATE_KEY`(+`_PASSWORD`)를 환경 변수로 받아 `npx --yes @tauri-apps/cli@2.12.4 signer sign --app-version <버전> <설치본>` 한 번으로 서명하고, `scripts/update-feeds.mjs` 가 서명을 공개키·설치본·버전과 대조해 검증한 뒤 `latest.json` 을 만든다. `updater.pub` 가 없으면 `sign` 잡은 건너뛰고, 시크릿이 없으면(포크 등) 서명 단계만 건너뛴다. 발행은 하지 않는다. `release.yml` 변경은 M7.
+- **M7 에서 구현된 것**: `release.yml` 이 `build`(Tauri 설치본, 서명 시크릿 없음) → `sign`(서명·`update-feeds.mjs` 검증·`latest.json`) → `release`(초안 → 공개) 3잡이 됐다. 버전 결정·트리거 3종·버전 정규식·태그 생성은 그대로다. 빌드 잡은 `npm run dist:tauri` 와 같은 단계를 개별로 돌려 헬퍼에 `-p:Version`·`-p:InformationalVersion` 을 넘긴다(옛 Tauri 시험 빌드는 헬퍼 버전이 0.0.0 으로 찍혔다). `sign` 잡은 발행하는 실행(태그 push, `workflow_call`)에서만 돌고, 서명 시크릿이나 `src-tauri/updater.pub` 가 없으면 **실패**해 서명 없는 정식 릴리스가 나가지 않는다(수동 점검 실행은 서명·발행하지 않고 설치본만 아티팩트로 올린다). `latest.json` 의 노트는 재사용 호출이면 입력 노트, 태그 push 면 태그 메시지, 없으면 기본값이다. 릴리스에는 설치본·`.sig`·`latest.json` 을 올리고 `latest.yml`·blockmap 은 더 이상 만들지 않는다. `tauri-build.yml` 은 M8 까지 시험·베타용으로 둔다. `scripts/next-version.mjs` 의 릴리스 노트 꼬리는 1.0.0 이상의 자동 업데이트와 0.x 사용자의 직접 설치 안내로 바꿨다.
 - **서명**: 업데이터 minisign 키는 필수이고 끌 수 없다. **키를 잃으면 기존 Tauri 설치본은 다시는 자동 업데이트를 받지 못한다.** 키 파일 복사본을 하나 보관한다(잃으면 새 키로 바꾼 버전을 한 번 수동 설치). Authenticode 는 지금처럼 없다.
 - **로컬 개발**: README "필요한 도구"에 Rust(MSVC) 추가.
 

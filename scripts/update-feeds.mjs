@@ -5,7 +5,7 @@
 // url 은 GitHub 릴리스 자산 주소다. 서명(.sig 파일의 내용 그대로)이 비어 있으면 업데이터가 설치본을 거부하므로 여기서 실패한다.
 // 피드를 쓰기 전에 서명을 실제로 검증한다(scripts/updater-sig.mjs): 공개키(src-tauri/updater.pub)와 키 ID 가 같은지, 설치본에 대한
 // Ed25519 서명이 맞는지, 서명이 덮는 `version:` 이 릴리스 버전과 같은지. 하나라도 어긋나면 피드를 만들지 않고 실패한다.
-// 사용: node scripts/update-feeds.mjs [--dir release-tauri] [--version X.Y.Z] [--notes "<텍스트>"] [--out <파일>] [--base-url <주소>]
+// 사용: node scripts/update-feeds.mjs [--dir release-tauri] [--version X.Y.Z] [--notes "<텍스트>" | --notes-file <파일>] [--out <파일>] [--base-url <주소>]
 //   버전 기본값은 package.json(릴리스 워크플로가 태그에서 넣는다). 노트 기본값은 "Peekaboo <버전>".
 //   --base-url 은 로컬 업데이트 리허설용이다(설치본을 `<주소>/<설치본 이름>` 에서 받게 한다. docs/tauri-rehearsal.md).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -79,7 +79,9 @@ function main() {
   if (pubkey === null) throw new Error('src-tauri/updater.pub 가 없어 서명을 검증할 수 없습니다(docs/tauri-migration.md 6절: 키 생성·커밋 절차)')
   const signature = readFileSync(sigPath, 'utf8')
   verifyUpdateSignature({ installer: readFileSync(installerPath), signature, pubkey, version })
-  const feed = buildFeed({ version, notes: args.notes, signature, baseUrl: args['base-url'] })
+  // 여러 줄 노트는 명령줄 인자 인용에 기대지 않도록 파일(UTF-8)로 받는다
+  const notes = args['notes-file'] ? readFileSync(args['notes-file'], 'utf8') : args.notes
+  const feed = buildFeed({ version, notes, signature, baseUrl: args['base-url'] })
   const out = resolve(root, args.out ?? join(dir, 'latest.json'))
   writeFileSync(out, `${JSON.stringify(feed, null, 2)}\n`)
   console.log(`${out} (v${version})`)
