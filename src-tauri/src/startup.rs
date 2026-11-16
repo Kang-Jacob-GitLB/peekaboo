@@ -232,38 +232,39 @@ pub fn set_enabled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use windows::Win32::System::Registry::{RegDeleteKeyW, RegDeleteTreeW};
+    use windows::Win32::System::Registry::RegDeleteTreeW;
 
-    /// 시험 전용 키(`HKCU\Software\PeekabooTest\<이름>-<pid>`). 쓰고 나면(실패해도) 지운다.
-    /// 실제 Run 키는 건드리지 않는다.
-    struct TestKey(String);
+    /// 시험 전용 키. 시험마다 공유 부모가 없는 고유 루트(`HKCU\Software\PeekabooTest-<이름>-<pid>`) 아래 `\Run` 을 쓰고,
+    /// 쓰고 나면(실패해도) 그 루트 트리만 지운다. 시험이 병렬로 도므로 부모 키를 공유하면 한 시험의 정리가 다른 시험이 쓰는 키를
+    /// 지우는 경쟁이 난다. 실제 Run 키는 건드리지 않는다.
+    struct TestKey {
+        root: String,
+        run: String,
+    }
 
     impl TestKey {
         fn new(name: &str) -> Self {
-            let key = TestKey(format!(r"{TEST_ROOT}\{name}-{}\Run", std::process::id()));
+            let root = format!(r"Software\PeekabooTest-{name}-{}", std::process::id());
+            let key = TestKey {
+                run: format!(r"{root}\Run"),
+                root,
+            };
             key.cleanup();
             key
         }
 
         fn path(&self) -> &str {
-            &self.0
+            &self.run
         }
 
         fn cleanup(&self) {
-            // 고유 하위 키(…\<이름>-<pid>) 전체를 지운다
-            let root = self.0.trim_end_matches(r"\Run");
-            let root = wide(root);
-            let parent = wide(TEST_ROOT);
-            // SAFETY: root·parent 는 NUL 로 끝나는 UTF-16
+            let root = wide(&self.root);
+            // SAFETY: root 는 NUL 로 끝나는 UTF-16
             unsafe {
                 let _ = RegDeleteTreeW(HKEY_CURRENT_USER, PCWSTR(root.as_ptr()));
-                // 비어 있는 시험 루트(Software\PeekabooTest)도 치운다. 다른 시험이 쓰는 중이면(비어 있지 않으면) 실패하므로 무시한다.
-                let _ = RegDeleteKeyW(HKEY_CURRENT_USER, PCWSTR(parent.as_ptr()));
             }
         }
     }
-
-    const TEST_ROOT: &str = r"Software\PeekabooTest";
 
     impl Drop for TestKey {
         fn drop(&mut self) {

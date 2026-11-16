@@ -2,7 +2,11 @@ name: tauri-build
 
 # Tauri 설치본(NSIS) 시험 빌드. 수동 실행 전용이며 릴리스·태그를 만들지 않는다(전환 계획 docs/tauri-migration.md M4).
 # 릴리스 파이프라인(release.yml, nightly-release.yml)과 분리돼 있어 Electron 릴리스에 영향이 없다.
-# 업데이터 서명 키가 없어 서명·latest.json 은 만들지 않는다(M5).
+# 업데이트 서명(M5, 빌드와 서명 분리): 빌드 잡(installer)은 서명 개인키를 받지 않는다. 공개키는 저장소의 src-tauri/updater.pub 에서만 읽고
+# (파일이 없으면 업데이터 없는 빌드), 설치본만 아티팩트로 올린다. 서명은 별도 sign 잡이 한다: Environment "release" 에 등록한 시크릿
+# TAURI_SIGNING_PRIVATE_KEY(+ _PASSWORD)를 이 잡만 받아 `tauri signer sign` 으로 설치본에 서명하고, 서명을 검증한 뒤 latest.json 을 만든다.
+# 빌드 단계의 의존성 설치·컴파일 코드가 개인키를 볼 수 없게 하려는 것이다. 시크릿이 없으면 sign 잡은 아무것도 서명하지 않고 끝난다.
+# 어느 쪽이든 아티팩트만 올리고 릴리스에는 발행하지 않는다. 발행은 M7 에서 release.yml 이 한다.
 on:
   workflow_dispatch:
 
@@ -18,6 +22,9 @@ jobs:
     name: Tauri 설치본 빌드
     # 헬퍼가 net8.0-windows(CsWin32)라 Windows 러너에서 빌드한다
     runs-on: windows-latest
+    # sign 잡을 돌릴지(업데이터 공개키 파일이 있는 빌드인지)
+    outputs:
+      updater: ${{ steps.pubkey.outputs.present }}
     defaults:
       run:
         shell: bash
@@ -55,13 +62,96 @@ jobs:
         run: npm ci
 
       # helper:build → 헬퍼 복사 → 렌더러 빌드 → tauri build(NSIS, cargo 에 `--locked`) → 설치본 이름 변경(release-tauri/)
+      # 이 잡에는 서명 시크릿을 주지 않는다. 공개키(src-tauri/updater.pub)가 있으면 scripts/tauri-build.mjs 가 업데이터 설정만 얹고
+      # 설치본 서명(createUpdaterArtifacts)은 만들지 않는다(CI 환경 변수로 판단). 엔드포인트는 기본(GitHub 릴리스) 외에는 거부한다.
       - name: 설치본 빌드
         run: npm run dist:tauri
+
+      # sign 잡을 돌릴지 정한다(공개키 파일이 없으면 업데이터 없는 빌드라 서명할 것이 없다)
+      - name: 업데이터 공개키 확인
+        id: pubkey
+        run: |
+          if [ -f src-tauri/updater.pub ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "src-tauri/updater.pub 가 없어 업데이터 없이 빌드했습니다. 서명 잡을 건너뜁니다."
+          fi
 
       - name: 설치본 업로드
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: peekaboo-tauri-installer
           path: release-tauri/Peekaboo-Setup-*-x64.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    name: 설치본 서명·피드 생성
+    needs: installer
+    # 시크릿은 `if:` 에서 쓸 수 없어 잡 수준에서는 공개키 파일 유무(빌드 잡의 출력)로만 거른다. 시크릿 유무는 첫 단계에서 본다.
+    if: needs.installer.outputs.updater == 'true'
+    runs-on: windows-latest
+    # 서명 개인키는 Environment "release" 의 시크릿으로만 둔다. Environment 에서 배포 브랜치를 main 으로 제한하거나 승인자를 두면
+    # 임의 브랜치에서 돌린 이 워크플로가 키를 읽지 못한다.
+    environment: release
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: 설치본 아티팩트 다운로드
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: peekaboo-tauri-installer
+          path: release-tauri
+
+      # 시크릿이 비어 있으면 서명 단계들을 건너뛴다(시크릿 없는 포크 등). 키는 환경 변수로만 다루고 명령줄에 싣지 않는다.
+      - name: 서명 키 확인
+        id: key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "TAURI_SIGNING_PRIVATE_KEY 시크릿이 없어 서명하지 않습니다."
+          fi
+
+      # 설치본 하나만 서명한다. `--app-version` 은 서명의 신뢰 주석에 버전을 넣는다(앱의 requireSignedVersion 이 요구).
+      # CLI 버전은 package.json 의 @tauri-apps/cli 와 같게 고정한다(올릴 때는 두 곳을 함께 바꾼다). 비밀번호가 비어 있어도
+      # 입력을 기다리지 않도록 표준 입력을 닫는다. 결과는 설치본 옆의 <설치본>.sig 다.
+      - name: 설치본 서명
+        if: steps.key.outputs.present == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npx --yes @tauri-apps/cli@2.12.4 signer sign --app-version "$version" "release-tauri/Peekaboo-Setup-${version}-x64.exe" </dev/null
+
+      # 서명이 공개키·설치본·버전과 맞는지 검증하고 latest.json 을 만든다. 하나라도 어긋나면 실패한다.
+      - name: 업데이터 피드(latest.json) 생성
+        if: steps.key.outputs.present == 'true'
+        run: node scripts/update-feeds.mjs
+
+      - name: 서명된 설치본 업로드
+        if: steps.key.outputs.present == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: peekaboo-tauri-signed
+          path: |
+            release-tauri/Peekaboo-Setup-*-x64.exe
+            release-tauri/Peekaboo-Setup-*-x64.exe.sig
+            release-tauri/latest.json
           if-no-files-found: error
           retention-days: 7

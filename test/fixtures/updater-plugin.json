@@ -1,0 +1,8 @@
+{
+  "_comment": "scripts/updater-config.mjs 가 만드는 plugins.updater 설정의 기준 모양. pubkey 와 endpoints 는 자리표시자이고, test/update-feeds.test.ts 가 buildUpdaterConfig 의 결과와 같은지 확인하며 src-tauri/src/updater.rs 시험이 같은 파일로 플러그인을 설정한다.",
+  "pubkey": "PUBKEY",
+  "endpoints": ["http://127.0.0.1:0/latest.json"],
+  "windows": { "installMode": "passive" },
+  "requireSignedVersion": true,
+  "dangerousInsecureTransportProtocol": true
+}

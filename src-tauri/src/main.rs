@@ -2,6 +2,7 @@
 // 미리보기 창·peek 프로토콜·렌더러 커맨드에 더해 C# 헬퍼 감시, 키 흐름, 네이티브 미리보기를 연결한다.
 // M3b: 창 동작(헤더 드래그·클릭 포커스 허용)·복사(우클릭·Ctrl+C)·WebView2 보호(guard.rs)·화면 밖 시험 모드.
 // M4: 트레이(tray.rs)·설정(settings.rs)·시작 시 실행(startup.rs)·로그 파일(logger.rs)·단일 인스턴스와 NSIS 패키징.
+// M5: 자동 업데이트(updater.rs)와 옛 Electron 설치본 확인(legacy.rs). 옛 설치본 정리는 NSIS 훅(windows/hooks.nsh)이 한다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(not(windows))]
@@ -20,6 +21,7 @@ mod files;
 mod guard;
 mod helper;
 mod layout;
+mod legacy;
 mod native;
 mod peek;
 mod preview;
@@ -27,6 +29,7 @@ mod session;
 mod settings;
 mod startup;
 mod tray;
+mod updater;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -108,6 +111,19 @@ fn init_logging() {
     }));
 }
 
+/// 안내 알림(업데이트 준비·옛 설치본). 클릭으로 설치하지는 않는다(트레이 메뉴로만 설치).
+/// 알림 플러그인이 등록되지 않았으면(단독 미리보기) 건너뛴다 — `app.notification()` 은 등록이 없으면 패닉한다.
+fn notify(app: &tauri::AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::{Notification, NotificationExt};
+    if app.try_state::<Notification<tauri::Wry>>().is_none() {
+        log_warn!("알림 플러그인이 없어 알림을 건너뛴다: {title}");
+        return;
+    }
+    if let Err(e) = app.notification().builder().title(title).body(body).show() {
+        log_warn!("알림을 띄우지 못했다: {e}");
+    }
+}
+
 /// 디버그 빌드의 identifier 접미사(tauri.conf.json 의 identifier 뒤에 붙인다)
 const DEBUG_IDENTIFIER_SUFFIX: &str = ".dev";
 
@@ -126,6 +142,8 @@ fn main() {
     let native_helper = helper.clone();
     let native = native::NativeBridge::new(move |msg| native_helper.send(msg));
     let exit_helper = helper.clone();
+    // 업데이트 설치는 프로세스를 곧바로 끝내 `RunEvent::Exit` 가 오지 않으므로, 설치 직전에 헬퍼를 내리는 데 쓴다
+    let update_helper = helper.clone();
 
     let mut builder = tauri::Builder::default();
     // 단일 인스턴스는 다른 플러그인보다 먼저 등록해야 한다. 두 번째 인스턴스는 아무것도 하지 않고 끝난다(Electron 과 같다).
@@ -141,6 +159,33 @@ fn main() {
             .config_mut()
             .identifier
             .push_str(DEBUG_IDENTIFIER_SUFFIX);
+    }
+    // 업데이터: 서명 공개키는 저장소의 src-tauri/updater.pub 이고 빌드할 때 `plugins.updater.pubkey` 로 주입한다(scripts/tauri-build.mjs).
+    // 켤 수 없으면(디버그·0.0.0·공개키 없음·단독 미리보기) 플러그인을 등록하지 않는다. 등록하면 설정에 endpoints·pubkey 가 있어야 한다.
+    let pubkey = context
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|c| c.get("pubkey"))
+        .and_then(|k| k.as_str())
+        .unwrap_or("")
+        .to_string();
+    let version = context.package_info().version.to_string();
+    let disabled = if dev.is_some() {
+        Some("단독 미리보기")
+    } else {
+        updater::disabled_reason(cfg!(debug_assertions), &version, &pubkey)
+    };
+    let update_enabled = disabled.is_none();
+    if let Some(reason) = disabled {
+        log_info!("자동 업데이트 꺼짐: {reason}");
+    } else {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    // 알림은 업데이트 안내와 옛 설치본 안내(legacy.rs)가 쓴다. 업데이터가 꺼진 빌드도 후자가 필요하므로 따로 등록한다.
+    if dev.is_none() {
+        builder = builder.plugin(tauri_plugin_notification::init());
     }
     let app = builder
         .manage(settings)
@@ -184,8 +229,50 @@ fn main() {
             let controller = controller::Controller::new(app.handle().clone(), helper, enabled);
             app.manage(controller.clone());
             if dev.is_none() {
+                // 업데이터는 트레이보다 먼저 관리 상태에 올린다(트레이가 만들어질 때 상태를 읽는다)
+                let updater = updater::Updater::new(
+                    app.handle().clone(),
+                    update_enabled,
+                    updater::Hooks {
+                        notify: Box::new({
+                            let handle = app.handle().clone();
+                            move |title, body| notify(&handle, title, body)
+                        }),
+                        on_change: Box::new({
+                            let handle = app.handle().clone();
+                            move || {
+                                if let Some(tray) = handle.try_state::<Arc<tray::AppTray>>() {
+                                    tray.inner().refresh_later();
+                                }
+                            }
+                        }),
+                        before_exit: Arc::new(move || update_helper.stop()),
+                        // 헬퍼·앱 정리를 마친 뒤 설치본 실행이 실패하면 아무것도 못 하는 앱이 남는다(updater.rs `install`).
+                        // 업데이트를 위해 누른 "다시 시작하여 업데이트"는 다시 시작해 헬퍼를 되살리고, "종료"는 그대로 끝낸다.
+                        recover: Box::new({
+                            let handle = app.handle().clone();
+                            move |restart| {
+                                if restart {
+                                    handle.restart()
+                                } else {
+                                    handle.exit(0)
+                                }
+                            }
+                        }),
+                    },
+                );
+                app.manage(updater.clone());
                 let tray = tray::AppTray::new(app.handle())?;
                 app.manage(tray);
+                updater.start();
+                // 옛 Electron 설치본이 남았는지 읽기만 한다. 개발 중에 실제 키를 읽지 않도록 릴리스 빌드에서만.
+                // 모든 사용자(HKLM) 설치본은 설치기가 지우지 못하므로 처음 한 번만 알림으로도 알린다.
+                if !cfg!(debug_assertions) {
+                    let handle = app.handle().clone();
+                    legacy::check_and_notify(appdata::data_dir(), move |title, body| {
+                        notify(&handle, title, body)
+                    });
+                }
             }
             // WebView2 브라우저 PID 를 얻은 뒤 헬퍼를 띄운다(hostPids 에 담기 위해)
             let with_helper = start_helper.is_some();

@@ -1,6 +1,7 @@
 // 트레이 아이콘과 메뉴. Electron 의 src/main/tray.ts 와 같은 구성이다.
-//   [Peekaboo <버전> — <상태>](비활성) / 구분선 / 스페이스바로 미리보기(체크) / Windows 시작 시 실행(체크) / 구분선 / 로그 폴더 열기 / 종료
-// 업데이트 항목은 업데이터(M5)와 함께 들어온다. 상태가 바뀌면 메뉴를 새로 만든다(`refresh`).
+//   [Peekaboo <버전> — <상태>](비활성) / 구분선 / 스페이스바로 미리보기(체크) / Windows 시작 시 실행(체크) / 구분선
+//   / 업데이트 항목(상태에 따라 문구가 바뀐다) / 로그 폴더 열기 / 종료
+// 업데이트 항목은 업데이터(updater.rs)의 상태를 따른다. 상태가 바뀌면 메뉴를 새로 만든다(`refresh`).
 //
 // 메뉴의 항목 구성·체크 상태·툴팁은 순수 함수(`menu_entries`·`tooltip`·`action_for`)로 두어 화면 없이 시험한다.
 // "로그 폴더 열기"는 JS 에 권한을 주지 않으려고 호스트가 `ShellExecuteW` 를 직접 부른다.
@@ -21,6 +22,7 @@ use crate::controller::Controller;
 use crate::helper::HelperStatus;
 use crate::settings::SettingsStore;
 use crate::startup;
+use crate::updater::{UpdateState, Updater};
 
 const TRAY_ID: &str = "peekaboo-tray";
 /// `bundle.resources` 가 설치 폴더에 놓는 파일 이름
@@ -29,6 +31,7 @@ const ICON_RESOURCE: &str = "tray.png";
 const ID_TITLE: &str = "title";
 const ID_HOTKEY: &str = "hotkey";
 const ID_LAUNCH: &str = "launch";
+const ID_UPDATE: &str = "update";
 const ID_LOGS: &str = "logs";
 const ID_QUIT: &str = "quit";
 
@@ -52,6 +55,22 @@ fn state_text(hotkey_enabled: bool, status: HelperStatus) -> &'static str {
     }
 }
 
+/// 업데이트 메뉴 항목의 문구와 활성 여부. Electron 의 tray.ts `updateItem` 과 같다.
+/// `enabled`: 업데이트를 쓸 수 있는 빌드인가(꺼진 빌드는 "업데이트 확인" 이 비활성).
+pub fn update_label(state: &UpdateState, enabled: bool) -> (String, bool) {
+    match state {
+        UpdateState::Checking => ("업데이트 확인 중…".into(), false),
+        UpdateState::Downloading { version, percent } => (
+            format!("업데이트 내려받는 중… ({version}, {percent}%)"),
+            false,
+        ),
+        UpdateState::Ready { version } => (format!("다시 시작하여 업데이트 ({version})"), true),
+        UpdateState::Idle | UpdateState::Latest | UpdateState::Error => {
+            ("업데이트 확인".into(), enabled)
+        }
+    }
+}
+
 /// 메뉴·툴팁을 정하는 입력
 #[derive(Debug, Clone, Copy)]
 pub struct TrayState<'a> {
@@ -62,6 +81,9 @@ pub struct TrayState<'a> {
     /// 시작 시 실행을 바꿀 수 있는가. 디버그(개발) 실행은 개발용 exe 가 등록되므로 막는다.
     pub launch_available: bool,
     pub status: HelperStatus,
+    pub update: &'a UpdateState,
+    /// 업데이트를 쓸 수 있는 빌드인가
+    pub update_enabled: bool,
 }
 
 pub fn tooltip(state: &TrayState) -> String {
@@ -89,6 +111,7 @@ pub enum Entry {
 
 pub fn menu_entries(state: &TrayState) -> Vec<Entry> {
     let text = state_text(state.hotkey_enabled, state.status);
+    let (update_text, update_enabled) = update_label(state.update, state.update_enabled);
     vec![
         Entry::Item {
             id: ID_TITLE,
@@ -110,6 +133,11 @@ pub fn menu_entries(state: &TrayState) -> Vec<Entry> {
         },
         Entry::Separator,
         Entry::Item {
+            id: ID_UPDATE,
+            label: update_text,
+            enabled: update_enabled,
+        },
+        Entry::Item {
             id: ID_LOGS,
             label: "로그 폴더 열기".into(),
             enabled: true,
@@ -126,6 +154,7 @@ pub fn menu_entries(state: &TrayState) -> Vec<Entry> {
 pub enum MenuAction {
     ToggleHotkey,
     ToggleLaunch,
+    Update,
     OpenLogs,
     Quit,
 }
@@ -134,6 +163,7 @@ pub fn action_for(id: &str) -> Option<MenuAction> {
     match id {
         ID_HOTKEY => Some(MenuAction::ToggleHotkey),
         ID_LAUNCH => Some(MenuAction::ToggleLaunch),
+        ID_UPDATE => Some(MenuAction::Update),
         ID_LOGS => Some(MenuAction::OpenLogs),
         ID_QUIT => Some(MenuAction::Quit),
         _ => None,
@@ -180,6 +210,14 @@ impl AppTray {
         }
     }
 
+    /// 업데이트 상태가 바뀌었다. 다른 스레드에서 불려도 되도록 메뉴 갱신은 메인 스레드에서 한다.
+    pub fn refresh_later(self: &Arc<Self>) {
+        let this = Arc::clone(self);
+        if let Err(e) = self.app.run_on_main_thread(move || this.refresh()) {
+            log_warn!("트레이 갱신을 메인 스레드에 넘기지 못했다: {e}");
+        }
+    }
+
     /// 메뉴와 툴팁을 현재 상태로 다시 만든다
     pub fn refresh(&self) {
         let settings = self.app.state::<SettingsStore>().get();
@@ -189,12 +227,19 @@ impl AppTray {
                 startup::is_enabled(startup::RUN_KEY, startup::VALUE_NAME, &exe)
             });
         let version = self.app.package_info().version.to_string();
+        // 업데이터는 트레이보다 먼저 만들지만(main.rs), 없으면 꺼진 것으로 본다
+        let (update, update_enabled) = match self.app.try_state::<Arc<Updater<tauri::Wry>>>() {
+            Some(u) => (u.state(), u.enabled()),
+            None => (UpdateState::Idle, false),
+        };
         let state = TrayState {
             version: &version,
             hotkey_enabled: settings.hotkey_enabled,
             launch_at_startup,
             launch_available,
             status: *self.status.lock().unwrap_or_else(|e| e.into_inner()),
+            update: &update,
+            update_enabled,
         };
         if let Err(e) = self.tray.set_tooltip(Some(tooltip(&state))) {
             log_warn!("트레이 툴팁을 바꾸지 못했다: {e}");
@@ -278,12 +323,32 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             }
             tray.refresh();
         }
+        MenuAction::Update => {
+            if let Some(updater) = app.try_state::<Arc<Updater<tauri::Wry>>>() {
+                // 받아 둔 것이 있으면 바로 설치(성공하면 돌아오지 않는다), 아니면 확인
+                if updater.is_ready() {
+                    if !updater.install(true) {
+                        tray.refresh();
+                    }
+                } else {
+                    updater.check_manually();
+                }
+            }
+        }
         MenuAction::OpenLogs => {
             if let Some(dir) = crate::appdata::log_dir() {
                 open_folder(&dir);
             }
         }
-        MenuAction::Quit => app.exit(0),
+        MenuAction::Quit => {
+            // 받아 둔 업데이트가 있으면 설치하며 끝낸다(설치 뒤 재실행하지 않는다). 성공하면 돌아오지 않는다.
+            if let Some(updater) = app.try_state::<Arc<Updater<tauri::Wry>>>() {
+                if updater.is_ready() && updater.install(false) {
+                    return;
+                }
+            }
+            app.exit(0)
+        }
     }
 }
 
@@ -350,12 +415,15 @@ mod tests {
         available: bool,
         status: HelperStatus,
     ) -> TrayState<'static> {
+        static IDLE: UpdateState = UpdateState::Idle;
         TrayState {
             version: "1.2.3",
             hotkey_enabled: hotkey,
             launch_at_startup: launch,
             launch_available: available,
             status,
+            update: &IDLE,
+            update_enabled: true,
         }
     }
 
@@ -381,7 +449,7 @@ mod tests {
             .collect();
         assert_eq!(
             kinds,
-            ["title", "-", "hotkey", "launch", "-", "logs", "quit"]
+            ["title", "-", "hotkey", "launch", "-", "update", "logs", "quit"]
         );
         assert_eq!(
             item(&e, "title"),
@@ -468,9 +536,73 @@ mod tests {
     fn 메뉴_id_는_동작에_대응한다() {
         assert_eq!(action_for("hotkey"), Some(MenuAction::ToggleHotkey));
         assert_eq!(action_for("launch"), Some(MenuAction::ToggleLaunch));
+        assert_eq!(action_for("update"), Some(MenuAction::Update));
         assert_eq!(action_for("logs"), Some(MenuAction::OpenLogs));
         assert_eq!(action_for("quit"), Some(MenuAction::Quit));
         assert_eq!(action_for("title"), None);
         assert_eq!(action_for("x"), None);
+    }
+
+    #[test]
+    fn 업데이트_항목_문구는_상태를_따른다() {
+        let v = |s: &str| s.to_string();
+        assert_eq!(
+            update_label(&UpdateState::Idle, true),
+            (v("업데이트 확인"), true)
+        );
+        // 업데이트를 쓸 수 없는 빌드는 "업데이트 확인" 이 비활성이다
+        assert_eq!(
+            update_label(&UpdateState::Idle, false),
+            (v("업데이트 확인"), false)
+        );
+        assert_eq!(
+            update_label(&UpdateState::Latest, true),
+            (v("업데이트 확인"), true)
+        );
+        assert_eq!(
+            update_label(&UpdateState::Error, true),
+            (v("업데이트 확인"), true)
+        );
+        assert_eq!(
+            update_label(&UpdateState::Checking, true),
+            (v("업데이트 확인 중…"), false)
+        );
+        assert_eq!(
+            update_label(
+                &UpdateState::Downloading {
+                    version: v("1.2.0"),
+                    percent: 40
+                },
+                true
+            ),
+            (v("업데이트 내려받는 중… (1.2.0, 40%)"), false)
+        );
+        assert_eq!(
+            update_label(
+                &UpdateState::Ready {
+                    version: v("1.2.0")
+                },
+                true
+            ),
+            (v("다시 시작하여 업데이트 (1.2.0)"), true)
+        );
+    }
+
+    #[test]
+    fn 받아_둔_업데이트는_메뉴에서_바로_설치할_수_있다() {
+        let ready = UpdateState::Ready {
+            version: "1.2.0".into(),
+        };
+        let mut s = state(true, false, true, HelperStatus::Running);
+        s.update = &ready;
+        let e = menu_entries(&s);
+        assert_eq!(
+            item(&e, "update"),
+            &Entry::Item {
+                id: "update",
+                label: "다시 시작하여 업데이트 (1.2.0)".into(),
+                enabled: true
+            }
+        );
     }
 }
