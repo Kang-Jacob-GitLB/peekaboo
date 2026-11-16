@@ -49,7 +49,7 @@ fn latest_request(first: ShowRequest, rx: &mpsc::Receiver<ShowRequest>) -> ShowR
 }
 
 struct HostInfo {
-    /// 단축키 설정. 설정 화면(M4)이 생기기 전에는 시작할 때 정한 값 그대로다.
+    /// 단축키 설정. 시작할 때는 설정 파일의 값이고, 트레이 메뉴에서 바꾸면 `set_hotkey_enabled` 로 갱신한다.
     enabled: bool,
     /// WebView2 브라우저 프로세스. `<select>` 팝업 같은 창을 소유한다. 프로세스가 끝나면 None 으로 되돌린다.
     browser_pid: Option<u32>,
@@ -106,12 +106,12 @@ impl Controller {
             let pid = unsafe { browser_process_id(&webview.controller()) };
             // 브라우저 프로세스가 끝나면(크래시·재시작) PID 가 다른 프로세스에 재사용될 수 있으므로 hostPids 에서 뺀다
             if let Err(e) = unsafe { watch_browser_exit(&webview.environment(), &on_ui) } {
-                eprintln!("[peekaboo] WebView2 브라우저 종료 이벤트를 등록하지 못했다: {e}");
+                log_warn!("WebView2 브라우저 종료 이벤트를 등록하지 못했다: {e}");
             }
             on_ui.finish_init(pid, start_helper);
         });
         if let Err(e) = result {
-            eprintln!("[peekaboo] WebView2 에 접근하지 못했다: {e}");
+            log_warn!("WebView2 에 접근하지 못했다: {e}");
             on_error.finish_init(None, start_on_error);
         }
     }
@@ -122,8 +122,8 @@ impl Controller {
         start_helper: Option<Option<PathBuf>>,
     ) {
         match browser_pid {
-            Some(pid) => eprintln!("[peekaboo] WebView2 브라우저 프로세스 pid={pid}"),
-            None => eprintln!("[peekaboo] WebView2 브라우저 프로세스 PID 를 얻지 못했다"),
+            Some(pid) => log_info!("WebView2 브라우저 프로세스 pid={pid}"),
+            None => log_warn!("WebView2 브라우저 프로세스 PID 를 얻지 못했다"),
         }
         self.host
             .lock()
@@ -136,6 +136,21 @@ impl Controller {
         }
     }
 
+    /// 현재 호스트 정보로 헬퍼에 `config` 를 보낸다. `host` 잠금을 쥔 채 불러서(전송은 채널에 넣기만 해 막히지 않는다)
+    /// 가장 나중에 보낸 config 가 가장 나중에 갱신된 값이 되게 한다.
+    fn send_config(&self, host: &HostInfo) {
+        let mut host_pids = vec![std::process::id()];
+        host_pids.extend(host.browser_pid);
+        let ctx = Ctx {
+            preview_open: false, // config 에는 쓰이지 않는다
+            text_selected: false,
+            enabled: host.enabled,
+            app_pid: std::process::id(),
+            host_pids: &host_pids,
+        };
+        self.helper.send(&ctx.config());
+    }
+
     fn host_pids(&self) -> (bool, Vec<u32>) {
         let host = self.host.lock().unwrap_or_else(|e| e.into_inner());
         let mut pids = vec![std::process::id()];
@@ -145,23 +160,27 @@ impl Controller {
 
     /// WebView2 브라우저 프로세스가 끝났다. 알고 있던 PID 와 같으면 hostPids 에서 빼고 헬퍼에 설정을 다시 보낸다.
     fn on_browser_exited(&self, pid: u32) {
+        let mut host = self.host.lock().unwrap_or_else(|e| e.into_inner());
+        if host.browser_pid != Some(pid) {
+            return;
+        }
+        host.browser_pid = None;
+        log_info!("WebView2 브라우저 프로세스 종료 pid={pid}");
+        self.send_config(&host);
+    }
+
+    /// 단축키 설정이 바뀌었다(트레이 메뉴). 헬퍼에 새 설정을 보내고, 꺼졌으면 열려 있던 미리보기를 닫는다.
+    /// Electron 의 AppTray 콜백(`config` 전송 + `!enabled` 면 closePreview)과 같다.
+    pub fn set_hotkey_enabled(&self, enabled: bool) {
+        // 갱신·읽기·전송을 한 잠금 안에서 한다. 나눠 하면 브라우저 종료 알림과 겹칠 때 낡은 hostPids 가 나중에 전송된다.
         {
             let mut host = self.host.lock().unwrap_or_else(|e| e.into_inner());
-            if host.browser_pid != Some(pid) {
-                return;
-            }
-            host.browser_pid = None;
+            host.enabled = enabled;
+            self.send_config(&host);
         }
-        eprintln!("[peekaboo] WebView2 브라우저 프로세스 종료 pid={pid}");
-        let (enabled, host_pids) = self.host_pids();
-        let ctx = Ctx {
-            preview_open: false, // config 에는 쓰이지 않는다
-            text_selected: false,
-            enabled,
-            app_pid: std::process::id(),
-            host_pids: &host_pids,
-        };
-        self.helper.send(&ctx.config());
+        if !enabled {
+            self.close();
+        }
     }
 
     /// 헬퍼에 현재의 `previewOpen`(PreviewState 의 열림·여는 중)을 알린다. 상태가 바뀔 수 있는 모든 곳
@@ -229,7 +248,7 @@ impl Controller {
         match action {
             Action::Send(msg) => {
                 if matches!(msg, HostMessage::Config { .. }) {
-                    eprintln!("[peekaboo] 헬퍼에 설정 전송: {}", msg.to_line().trim_end());
+                    log_info!("헬퍼에 설정 전송: {}", msg.to_line().trim_end());
                 }
                 self.helper.send(&msg);
             }
@@ -255,7 +274,7 @@ impl Controller {
                 .state::<NativeBridge>()
                 .on_result(id, status, message),
             Action::NativeCloseAll(reason) => self.app.state::<NativeBridge>().close_all(reason),
-            Action::Log(line) => eprintln!("[peekaboo] {line}"),
+            Action::Log(line) => log_info!("{line}"),
         }
     }
 

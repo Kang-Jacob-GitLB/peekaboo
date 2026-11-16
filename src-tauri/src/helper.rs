@@ -40,6 +40,18 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const HELPER_EXE: &str = "peekaboo-helper.exe";
 
+/// 헬퍼 감시 상태(트레이 표시용). Electron 의 `HelperStatus` 와 같다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HelperStatus {
+    Starting,
+    Running,
+    Restarting,
+    Missing,
+    Stopped,
+}
+
+type OnStatus = Arc<dyn Fn(HelperStatus) + Send + Sync>;
+
 // ---------------------------------------------------------------------------
 // 메시지
 // ---------------------------------------------------------------------------
@@ -281,7 +293,8 @@ fn ping_interval() -> tokio::time::Interval {
 
 /// 헬퍼 실행 파일 후보(앞이 우선). 오버라이드가 있으면 그것만 본다.
 /// 디버그 빌드는 저장소의 `helper/publish`(`npm run helper:build`)를 먼저 보고, 그다음 실행 파일 옆을 본다.
-/// 패키징 경로는 M4 에서 정한다.
+/// 설치본에서는 Tauri 가 `bundle.externalBin`(`binaries/peekaboo-helper-<타깃>.exe`)을 타깃 접미사를 뗀
+/// `peekaboo-helper.exe` 로 앱 exe 옆에 놓으므로 위 "실행 파일 옆" 후보가 곧 설치본 경로다.
 pub fn helper_candidates(
     override_path: Option<PathBuf>,
     repo_root: Option<&Path>,
@@ -331,6 +344,29 @@ struct Inner {
     done_tx: std_mpsc::Sender<()>,
     done_rx: Mutex<std_mpsc::Receiver<()>>,
     started: AtomicBool,
+    status: Mutex<HelperStatus>,
+    on_status: Mutex<Option<OnStatus>>,
+}
+
+impl Inner {
+    /// 상태가 바뀌었을 때만 알린다
+    fn set_status(&self, status: HelperStatus) {
+        {
+            let mut current = self.status.lock().unwrap_or_else(|e| e.into_inner());
+            if *current == status {
+                return;
+            }
+            *current = status;
+        }
+        let callback = self
+            .on_status
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        if let Some(callback) = callback {
+            callback(status);
+        }
+    }
 }
 
 /// 헬퍼 프로세스 수명 관리: 실행, stdout JSON Lines 파싱, ping 감시, 비정상 종료 시 백오프 재시작.
@@ -351,12 +387,23 @@ impl Default for Helper {
                 done_tx,
                 done_rx: Mutex::new(done_rx),
                 started: AtomicBool::new(false),
+                status: Mutex::new(HelperStatus::Stopped),
+                on_status: Mutex::new(None),
             }),
         }
     }
 }
 
 impl Helper {
+    /// 상태가 바뀔 때마다 불리는 콜백을 등록한다(`start` 전에 부른다). 감시 태스크에서 불리므로 오래 막지 않는다.
+    pub fn on_status(&self, callback: impl Fn(HelperStatus) + Send + Sync + 'static) {
+        *self
+            .inner
+            .on_status
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(callback));
+    }
+
     /// 헬퍼를 띄우고 감시를 시작한다. 두 번 부르면 무시한다. `on_message` 는 감시 태스크에서 불리므로 오래 막지 않는다.
     /// (`pong` 은 여기서 먹고 넘기지 않는다.)
     pub fn start(
@@ -371,6 +418,10 @@ impl Helper {
         let on_message: OnMessage = Arc::new(on_message);
         tauri::async_runtime::spawn(async move {
             supervise(&inner, path_override, on_message).await;
+            // 헬퍼 파일이 없어 루프를 끝낸 경우(Missing)는 그 상태를 유지한다. 정지 요청으로 끝났을 때만 Stopped.
+            if inner.stopping.load(Ordering::SeqCst) {
+                inner.set_status(HelperStatus::Stopped);
+            }
             let _ = inner.done_tx.send(());
         });
     }
@@ -394,7 +445,7 @@ impl Helper {
         }
         let rx = self.inner.done_rx.lock().unwrap_or_else(|e| e.into_inner());
         if rx.recv_timeout(STOP_WAIT).is_err() {
-            eprintln!("[peekaboo] 헬퍼 종료를 기다리다 시간이 지났다");
+            log_warn!("헬퍼 종료를 기다리다 시간이 지났다");
         }
     }
 }
@@ -415,10 +466,18 @@ async fn supervise(inner: &Arc<Inner>, path_override: Option<PathBuf>, on_messag
         }
         let Some(exe) = resolve_helper_path(path_override.clone()) else {
             // 경로가 없으면 재시작해도 소용없으니 루프를 돌지 않는다
-            eprintln!("[peekaboo] 헬퍼 실행 파일을 찾지 못했다(`npm run helper:build` 또는 PEEKABOO_HELPER=<경로>)");
+            inner.set_status(HelperStatus::Missing);
+            log_warn!(
+                "헬퍼 실행 파일을 찾지 못했다(`npm run helper:build` 또는 PEEKABOO_HELPER=<경로>)"
+            );
             return;
         };
-        eprintln!("[peekaboo] 헬퍼 실행: {}", exe.display());
+        inner.set_status(if step == 0 {
+            HelperStatus::Starting
+        } else {
+            HelperStatus::Restarting
+        });
+        log_info!("헬퍼 실행: {}", exe.display());
         let started = Instant::now();
         let end = run_once(inner, &exe, &on_message).await;
         *inner.tx.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -428,10 +487,8 @@ async fn supervise(inner: &Arc<Inner>, path_override: Option<PathBuf>, on_messag
         };
         let (delay, next) = next_restart(step, started.elapsed());
         step = next;
-        eprintln!(
-            "[peekaboo] 헬퍼 종료({why}), {}ms 뒤 다시 띄운다",
-            delay.as_millis()
-        );
+        inner.set_status(HelperStatus::Restarting);
+        log_info!("헬퍼 종료({why}), {}ms 뒤 다시 띄운다", delay.as_millis());
         tokio::select! {
             _ = tokio::time::sleep(delay) => {}
             _ = inner.stop.notified() => return,
@@ -490,12 +547,13 @@ async fn run_once(inner: &Arc<Inner>, exe: &Path, on_message: &OnMessage) -> Run
                         Parsed::Empty => {}
                         Parsed::Broken(e) => {
                             let head: String = text.chars().take(200).collect();
-                            eprintln!("[peekaboo] 헬퍼 출력을 해석하지 못했다({e}): {head}");
+                            log_warn!("헬퍼 출력을 해석하지 못했다({e}): {head}");
                         }
                         Parsed::Message(HelperMessage::Pong { .. }) => ping.pong(),
                         Parsed::Message(msg) => {
                             if let HelperMessage::Ready { version, pid } = &msg {
-                                eprintln!("[peekaboo] 헬퍼 ready v{version} pid={pid}");
+                                log_info!("헬퍼 ready v{version} pid={pid}");
+                                inner.set_status(HelperStatus::Running);
                                 ping = PingTracker::new();
                                 ticker = Some(ping_interval());
                             }
@@ -507,7 +565,7 @@ async fn run_once(inner: &Arc<Inner>, exe: &Path, on_message: &OnMessage) -> Run
             },
             // stderr 는 끝까지 읽어야 한다(파이프가 차면 헬퍼가 막힌다)
             line = err.next_segment(), if err_open => match line {
-                Ok(Some(bytes)) => eprintln!("[helper.exe] {}", String::from_utf8_lossy(&bytes).trim_end()),
+                Ok(Some(bytes)) => crate::logger::raw("helper.exe", String::from_utf8_lossy(&bytes).trim_end()),
                 _ => err_open = false,
             },
             _ = async { ticker.as_mut().expect("guard").tick().await }, if ticker.is_some() => {
@@ -520,7 +578,7 @@ async fn run_once(inner: &Arc<Inner>, exe: &Path, on_message: &OnMessage) -> Run
                         }
                     }
                     PingAction::Kill => {
-                        eprintln!("[peekaboo] 헬퍼가 응답하지 않아 종료한다");
+                        log_warn!("헬퍼가 응답하지 않아 종료한다");
                         // 종료되면 아래 wait 가지가 재시작으로 이어 준다
                         let _ = child.start_kill();
                     }
@@ -561,6 +619,22 @@ mod tests {
 
     fn secs(n: u64) -> Duration {
         Duration::from_secs(n)
+    }
+
+    /// 헬퍼 파일이 없으면 상태는 Missing 하나만 알리고 그대로 머문다(Stopped 로 덮지 않는다)
+    #[test]
+    fn 헬퍼_파일이_없으면_missing_에_머문다() {
+        let (tx, rx) = std_mpsc::channel();
+        let helper = Helper::default();
+        helper.on_status(move |s| {
+            let _ = tx.send(s);
+        });
+        let missing =
+            std::env::temp_dir().join(format!("peekaboo-no-helper-{}.exe", std::process::id()));
+        helper.start(Some(missing), |_| {});
+        assert_eq!(rx.recv_timeout(secs(5)), Ok(HelperStatus::Missing));
+        // 감시 루프가 끝난 뒤에도 다른 상태가 오지 않는다
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
     }
 
     #[test]

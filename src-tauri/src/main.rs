@@ -1,12 +1,17 @@
 // Peekaboo Tauri 호스트(전환 계획 docs/tauri-migration.md M2·M3a).
 // 미리보기 창·peek 프로토콜·렌더러 커맨드에 더해 C# 헬퍼 감시, 키 흐름, 네이티브 미리보기를 연결한다.
 // M3b: 창 동작(헤더 드래그·클릭 포커스 허용)·복사(우클릭·Ctrl+C)·WebView2 보호(guard.rs)·화면 밖 시험 모드.
-// 트레이, 단일 인스턴스, 설정, 로그 파일은 M4.
+// M4: 트레이(tray.rs)·설정(settings.rs)·시작 시 실행(startup.rs)·로그 파일(logger.rs)·단일 인스턴스와 NSIS 패키징.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(not(windows))]
 compile_error!("Peekaboo 는 Windows 전용이다");
 
+// 로그 매크로(log_info! 등)를 다른 모듈이 쓰므로 가장 먼저 선언한다
+#[macro_use]
+mod logger;
+
+mod appdata;
 mod capture;
 mod clipboard;
 mod commands;
@@ -19,8 +24,12 @@ mod native;
 mod peek;
 mod preview;
 mod session;
+mod settings;
+mod startup;
+mod tray;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{Manager, RunEvent};
@@ -80,16 +89,35 @@ fn helper_plan(dev_preview: bool) -> Option<Option<PathBuf>> {
     }
 }
 
-/// 단축키 설정의 시작값. 디버그 빌드에서 `PEEKABOO_HOTKEY=0` 이면 꺼서 시작한다(헬퍼가 키를 가로채지 않으므로,
-/// 설치된 Peekaboo 가 실행 중일 때 두 훅이 같은 Space 를 두고 다투지 않고 실측할 수 있다).
-fn hotkey_enabled() -> bool {
-    !(cfg!(debug_assertions) && std::env::var("PEEKABOO_HOTKEY").is_ok_and(|v| v == "0"))
+/// 단축키 설정의 시작값: 설정 파일의 값. 디버그 빌드에서 `PEEKABOO_HOTKEY=0` 이면 설정과 상관없이 꺼서 시작한다
+/// (헬퍼가 키를 가로채지 않으므로, 설치된 Peekaboo 가 실행 중일 때 두 훅이 같은 Space 를 두고 다투지 않고 실측할 수 있다).
+fn hotkey_enabled(from_settings: bool) -> bool {
+    from_settings
+        && !(cfg!(debug_assertions) && std::env::var("PEEKABOO_HOTKEY").is_ok_and(|v| v == "0"))
 }
 
+/// 로그 파일을 열고 패닉을 기록한다(Electron 의 uncaughtException 로그에 해당). 디버그 빌드는 `Peekaboo-dev` 를 쓴다.
+fn init_logging() {
+    if let Some(dir) = appdata::log_dir() {
+        logger::init(&dir, cfg!(debug_assertions));
+    }
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log_error!("panic: {info}");
+        default_hook(info);
+    }));
+}
+
+/// 디버그 빌드의 identifier 접미사(tauri.conf.json 의 identifier 뒤에 붙인다)
+const DEBUG_IDENTIFIER_SUFFIX: &str = ".dev";
+
 fn main() {
+    init_logging();
     let dev = DevPreview::from_env();
     let start_helper = helper_plan(dev.is_some());
-    let enabled = hotkey_enabled();
+    let settings =
+        settings::SettingsStore::load(appdata::data_dir().map(appdata::settings_file_in));
+    let enabled = hotkey_enabled(settings.get().hotkey_enabled);
     let data_dir = dev.as_ref().and_then(|d| d.data_dir.clone());
     let offscreen = dev.as_ref().is_some_and(|d| d.offscreen);
     let cleanup_dir = data_dir.clone();
@@ -99,7 +127,23 @@ fn main() {
     let native = native::NativeBridge::new(move |msg| native_helper.send(msg));
     let exit_helper = helper.clone();
 
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // 단일 인스턴스는 다른 플러그인보다 먼저 등록해야 한다. 두 번째 인스턴스는 아무것도 하지 않고 끝난다(Electron 과 같다).
+    // 디버그 단독 미리보기·화면 밖 모드는 등록하지 않는다(설치된 Peekaboo 가 떠 있어도 시험할 수 있게).
+    if dev.is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}));
+    }
+    // 단일 인스턴스 잠금(뮤텍스 이름)은 앱 identifier 로 만든다. 디버그 빌드는 identifier 에 `.dev` 를 붙여
+    // 설치된 Peekaboo 와 잠금·WebView2 프로필이 겹치지 않게 한다(겹치면 디버그 상주 실행이 아무 로그 없이 바로 끝난다).
+    let mut context = tauri::generate_context!();
+    if cfg!(debug_assertions) {
+        context
+            .config_mut()
+            .identifier
+            .push_str(DEBUG_IDENTIFIER_SUFFIX);
+    }
+    let app = builder
+        .manage(settings)
         .manage(native)
         .manage(preview::PreviewState::default())
         .manage(preview::Offscreen(offscreen))
@@ -122,10 +166,27 @@ fn main() {
         ])
         .setup(move |app| {
             // setup 은 동기 커맨드·이벤트 핸들러가 아니라 앱 초기화 단계라 창 생성이 안전하다.
+            log_info!(
+                "Peekaboo {} starting (debug={}, dev_preview={})",
+                app.package_info().version,
+                cfg!(debug_assertions),
+                dev.is_some()
+            );
             let window = preview::create_window(app.handle(), data_dir, offscreen)?;
             guard::install(app.handle(), &window);
+            // 헬퍼 상태를 트레이에 알린다. 트레이는 아래에서 만들며(단독 미리보기에서는 만들지 않는다) 없으면 무시한다.
+            let status_handle = app.handle().clone();
+            helper.on_status(move |status| {
+                if let Some(tray) = status_handle.try_state::<Arc<tray::AppTray>>() {
+                    tray.inner().set_status(status);
+                }
+            });
             let controller = controller::Controller::new(app.handle().clone(), helper, enabled);
             app.manage(controller.clone());
+            if dev.is_none() {
+                let tray = tray::AppTray::new(app.handle())?;
+                app.manage(tray);
+            }
             // WebView2 브라우저 PID 를 얻은 뒤 헬퍼를 띄운다(hostPids 에 담기 위해)
             let with_helper = start_helper.is_some();
             controller.init(&window, start_helper);
@@ -149,7 +210,7 @@ fn main() {
             }
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Tauri 앱 생성 실패");
 
     app.run(move |_app, event| match event {

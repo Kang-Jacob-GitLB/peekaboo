@@ -7,9 +7,13 @@ license = "GPL-3.0-only"
 publish = false
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# tray-icon: 트레이, image-png: resources/tray.png 를 Image 로 읽는다
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+# 단일 인스턴스. 디버그 단독 미리보기를 뺀 모든 실행에서 Builder 에 맨 먼저 등록한다.
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# preserve_order: settings.json 의 키 순서를 Electron(JS 객체)처럼 읽은 순서대로 유지한다
+serde_json = { version = "1", features = ["preserve_order"] }
 # 헬퍼 프로세스 감시(tokio::process). 런타임은 tauri::async_runtime 이 이미 돌리고 있는 것을 쓴다.
 tokio = { version = "1", features = ["process", "io-util", "time", "sync", "rt", "macros"] }
 
@@ -34,9 +38,11 @@ webview2-com = "0.39"
 version = "0.62"
 features = [
   "Win32_Foundation",
+  "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_Com",
   "Win32_System_DataExchange",
   "Win32_System_Memory",
+  "Win32_System_Registry",
   "Win32_UI_Shell",
 ]

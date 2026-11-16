@@ -418,13 +418,16 @@ pub fn create_window(
         .background_color(background(false))
         // wry 는 핸들러가 없으면 새 창 요청을 거부하지만(wry 0.57.2 webview2/mod.rs:862-864, 핸들러가 없으면 SetHandled(true)) 명시해 둔다
         .on_new_window(|url, _features| {
-            eprintln!("[peekaboo] 새 창 차단: {url}");
+            log_info!("새 창 차단: {}", crate::logger::clip_url(url.as_str()));
             NewWindowResponse::Deny
         })
         .on_navigation(|url| {
             let ok = is_app_url(url);
             if !ok {
-                eprintln!("[peekaboo] 메인 프레임 이동 차단: {url}");
+                log_info!(
+                    "메인 프레임 이동 차단: {}",
+                    crate::logger::clip_url(url.as_str())
+                );
             }
             ok
         });
@@ -532,7 +535,7 @@ pub fn apply_fit(app: &AppHandle, size: Option<ContentSize>) {
     };
     if let Some(monitor) = sizing_monitor(app, Some(&window)) {
         if let Err(e) = place(app, &window, &monitor, size.as_ref()) {
-            eprintln!("[peekaboo] 창 크기 맞춤 실패: {e}");
+            log_warn!("창 크기 맞춤 실패: {e}");
         }
     }
 }
@@ -546,7 +549,7 @@ pub fn start_drag(app: &AppHandle) {
     }
     if let Some(window) = app.get_webview_window(LABEL) {
         if let Err(e) = window.start_dragging() {
-            eprintln!("[peekaboo] 창 이동 시작 실패: {e}");
+            log_warn!("창 이동 시작 실패: {e}");
         }
     }
 }
@@ -565,12 +568,12 @@ pub fn set_activatable(app: &AppHandle, activatable: bool) {
     let queued = app.run_on_main_thread(move || {
         if let Some(window) = handle.get_webview_window(LABEL) {
             if let Err(e) = apply_activatable(&window, activatable) {
-                eprintln!("[peekaboo] 클릭 포커스 설정 실패: {e}");
+                log_warn!("클릭 포커스 설정 실패: {e}");
             }
         }
     });
     if let Err(e) = queued {
-        eprintln!("[peekaboo] 클릭 포커스 설정을 메인 스레드에 넘기지 못했다: {e}");
+        log_warn!("클릭 포커스 설정을 메인 스레드에 넘기지 못했다: {e}");
     }
 }
 
@@ -586,7 +589,7 @@ pub fn request_copy(app: &AppHandle) {
         return;
     };
     if let Err(e) = app.emit_to(LABEL, EVENT_COPY_REQUEST, id) {
-        eprintln!("[peekaboo] 복사 요청 전송 실패: {e}");
+        log_warn!("복사 요청 전송 실패: {e}");
     }
 }
 
@@ -621,9 +624,7 @@ pub fn copy_to_clipboard(app: &AppHandle, text: &str, via: &str) {
         Ok(Some(info)) => info,
         Ok(None) => return,
         Err(len) => {
-            eprintln!(
-                "[peekaboo] 복사 거부: {len}바이트가 상한 {MAX_COPY_BYTES}바이트를 넘는다 ({via})"
-            );
+            log_info!("복사 거부: {len}바이트가 상한 {MAX_COPY_BYTES}바이트를 넘는다 ({via})");
             return;
         }
     };
@@ -633,21 +634,18 @@ pub fn copy_to_clipboard(app: &AppHandle, text: &str, via: &str) {
     let owner = match window.hwnd() {
         Ok(hwnd) => hwnd.0 as isize,
         Err(e) => {
-            eprintln!("[peekaboo] 클립보드 소유 창을 얻지 못했다: {e}");
+            log_warn!("클립보드 소유 창을 얻지 못했다: {e}");
             return;
         }
     };
     match crate::clipboard::set_text(text, owner) {
         Ok(()) => {
-            eprintln!(
-                "[peekaboo] copied {} chars, {} lines ({via})",
-                info.chars, info.lines
-            );
+            log_info!("copied {} chars, {} lines ({via})", info.chars, info.lines);
             if let Err(e) = app.emit_to(LABEL, EVENT_COPIED, info) {
-                eprintln!("[peekaboo] 복사 알림 전송 실패: {e}");
+                log_warn!("복사 알림 전송 실패: {e}");
             }
         }
-        Err(e) => eprintln!("[peekaboo] 클립보드 쓰기 실패: {e}"),
+        Err(e) => log_warn!("클립보드 쓰기 실패: {e}"),
     }
 }
 
@@ -699,7 +697,7 @@ pub fn show_in(app: &AppHandle, path: &str, selection_count: usize, epoch: Optio
     }
 
     if app.get_webview_window(LABEL).is_none() {
-        eprintln!("[peekaboo] 미리보기 창이 없다");
+        log_warn!("미리보기 창이 없다");
         abort_open(app, seq);
         return;
     }
@@ -712,10 +710,7 @@ pub fn show_in(app: &AppHandle, path: &str, selection_count: usize, epoch: Optio
         if !state.is_current(seq) {
             return;
         }
-        eprintln!(
-            "[peekaboo] 렌더러가 {}초 안에 준비되지 않았다",
-            READY_WAIT.as_secs()
-        );
+        log_info!("렌더러가 {}초 안에 준비되지 않았다", READY_WAIT.as_secs());
         abort_open(app, seq);
         return;
     }
@@ -737,7 +732,7 @@ pub fn show_in(app: &AppHandle, path: &str, selection_count: usize, epoch: Optio
         ),
     };
     if let Err(e) = sent {
-        eprintln!("[peekaboo] 표시 이벤트 전송 실패: {e}");
+        log_warn!("표시 이벤트 전송 실패: {e}");
     }
 
     let mut applied = None;
@@ -750,7 +745,7 @@ pub fn show_in(app: &AppHandle, path: &str, selection_count: usize, epoch: Optio
     }
     let handle = app.clone();
     if let Err(e) = app.run_on_main_thread(move || present(&handle, seq, was_visible, applied)) {
-        eprintln!("[peekaboo] 표시를 메인 스레드에 넘기지 못했다: {e}");
+        log_warn!("표시를 메인 스레드에 넘기지 못했다: {e}");
         abort_open(app, seq);
     }
 }
@@ -768,7 +763,7 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
         return;
     }
     let Some(window) = app.get_webview_window(LABEL) else {
-        eprintln!("[peekaboo] 미리보기 창이 없다");
+        log_warn!("미리보기 창이 없다");
         abort_open(app, seq);
         return;
     };
@@ -780,14 +775,12 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
         };
         if let Some(monitor) = monitor {
             if let Err(e) = place(app, &window, &monitor, applied.as_ref()) {
-                eprintln!("[peekaboo] 창 배치 실패: {e}");
+                log_warn!("창 배치 실패: {e}");
             }
         }
         if is_offscreen(app) && !offscreen_verified(app, &window) {
             // 어느 모니터에든 걸친 채 띄우면 사용자 화면에 보인다. 띄우지 않고 끝낸다.
-            eprintln!(
-                "[peekaboo] 화면 밖 시험 모드인데 창이 모니터와 겹친다. 띄우지 않고 종료한다"
-            );
+            log_info!("화면 밖 시험 모드인데 창이 모니터와 겹친다. 띄우지 않고 종료한다");
             fail_show(app, seq);
             app.exit(1);
             return;
@@ -799,24 +792,21 @@ fn present(app: &AppHandle, seq: u64, was_visible: bool, applied: Option<Content
         let guard_focus = !is_offscreen(app);
         if guard_focus {
             if let Err(e) = window.set_focusable(false) {
-                eprintln!("[peekaboo] 표시 전 포커스 차단 실패: {e}");
+                log_warn!("표시 전 포커스 차단 실패: {e}");
             }
         }
         let shown = window.show();
         if guard_focus {
             if let Err(e) = apply_activatable(&window, state.activatable()) {
-                eprintln!("[peekaboo] 표시 뒤 포커스 복원 실패: {e}");
+                log_warn!("표시 뒤 포커스 복원 실패: {e}");
             }
         }
         if let Err(e) = shown {
-            eprintln!("[peekaboo] 창 표시 실패: {e}");
+            log_warn!("창 표시 실패: {e}");
             fail_show(app, seq);
             return;
         }
-        eprintln!(
-            "[peekaboo] shown in {}ms",
-            state.since_start(seq).unwrap_or_default()
-        );
+        log_info!("shown in {}ms", state.since_start(seq).unwrap_or_default());
     }
     match state.finish_show(seq, applied) {
         Finish::Late(size) => apply_fit(app, size),
@@ -843,18 +833,18 @@ pub fn hide(app: &AppHandle) -> bool {
     app.state::<crate::native::NativeBridge>()
         .close_all("hidden");
     if let Err(e) = app.emit_to(LABEL, EVENT_HIDE, ()) {
-        eprintln!("[peekaboo] hide 이벤트 전송 실패: {e}");
+        log_warn!("hide 이벤트 전송 실패: {e}");
     }
     let handle = app.clone();
     let queued = app.run_on_main_thread(move || {
         if let Some(window) = handle.get_webview_window(LABEL) {
             if let Err(e) = window.hide() {
-                eprintln!("[peekaboo] 창 숨김 실패: {e}");
+                log_warn!("창 숨김 실패: {e}");
             }
         }
     });
     if let Err(e) = queued {
-        eprintln!("[peekaboo] 창 숨김을 메인 스레드에 넘기지 못했다: {e}");
+        log_warn!("창 숨김을 메인 스레드에 넘기지 못했다: {e}");
     }
     true
 }
