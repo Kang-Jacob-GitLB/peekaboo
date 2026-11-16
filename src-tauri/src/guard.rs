@@ -113,11 +113,11 @@ pub fn install(app: &AppHandle, window: &WebviewWindow) {
     let result = window.with_webview(move |webview| {
         // SAFETY: with_webview 의 클로저는 WebView2 가 만들어진 UI 스레드에서 실행된다.
         if let Err(e) = unsafe { attach(&webview.controller(), &app) } {
-            eprintln!("[peekaboo] WebView2 보호 기능을 붙이지 못했다: {e}");
+            log_warn!("WebView2 보호 기능을 붙이지 못했다: {e}");
         }
     });
     if let Err(e) = result {
-        eprintln!("[peekaboo] WebView2 에 접근하지 못했다(보호 기능): {e}");
+        log_warn!("WebView2 에 접근하지 못했다(보호 기능): {e}");
     }
 }
 
@@ -137,11 +137,7 @@ unsafe fn attach(
         let Some(args) = args else { return Ok(()) };
         let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
         args.ProcessFailedKind(&mut kind)?;
-        eprintln!(
-            "[peekaboo] WebView2 {} ({})",
-            kind_name(kind),
-            failure_details(&args)
-        );
+        log_info!("WebView2 {} ({})", kind_name(kind), failure_details(&args));
         if failure_action(kind) == FailureAction::RecoverRenderer {
             recover_renderer(&failed_app, sender.as_ref());
         }
@@ -156,7 +152,7 @@ unsafe fn attach(
         .and_then(|s| s.SetAreBrowserAcceleratorKeysEnabled(false))
     {
         Ok(()) => {}
-        Err(e) => eprintln!("[peekaboo] 브라우저 가속키를 끄지 못했다: {e}"),
+        Err(e) => log_warn!("브라우저 가속키를 끄지 못했다: {e}"),
     }
 
     // 서브프레임 이동 차단. 메인 프레임 이동은 Tauri 의 on_navigation 이 막는다(preview.rs).
@@ -166,14 +162,14 @@ unsafe fn attach(
             args.Uri(&mut uri)?;
             let uri = take_pwstr(uri);
             if !allow_frame_navigation(&uri) {
-                eprintln!("[peekaboo] 서브프레임 이동 차단: {uri}");
+                log_info!("서브프레임 이동 차단: {}", crate::logger::clip_url(&uri));
                 args.SetCancel(true)?;
             }
         }
         Ok(())
     }));
     if let Err(e) = core.add_FrameNavigationStarting(&frames, &mut token) {
-        eprintln!("[peekaboo] 서브프레임 이동 차단을 붙이지 못했다: {e}");
+        log_warn!("서브프레임 이동 차단을 붙이지 못했다: {e}");
     }
 
     // 우클릭 복사
@@ -194,7 +190,7 @@ unsafe fn attach(
         .and_then(|c| c.add_ContextMenuRequested(&menu, &mut token))
     {
         Ok(()) => {}
-        Err(e) => eprintln!("[peekaboo] 우클릭 복사를 붙이지 못했다: {e}"),
+        Err(e) => log_warn!("우클릭 복사를 붙이지 못했다: {e}"),
     }
     Ok(())
 }
@@ -244,8 +240,8 @@ fn try_reload(app: &AppHandle, core: &ICoreWebView2) {
         .unwrap_or_else(|e| e.into_inner())
         .allow(Instant::now());
     if !allowed {
-        eprintln!(
-            "[peekaboo] 렌더러가 {}초 안에 {}번 넘게 죽어 지금은 다시 불러오지 않는다(다음 열기에서 다시 시도)",
+        log_info!(
+            "렌더러가 {}초 안에 {}번 넘게 죽어 지금은 다시 불러오지 않는다(다음 열기에서 다시 시도)",
             ReloadLimiter::WINDOW.as_secs(),
             ReloadLimiter::MAX_RELOADS
         );
@@ -256,11 +252,11 @@ fn try_reload(app: &AppHandle, core: &ICoreWebView2) {
     match unsafe { core.Reload() } {
         Ok(()) => {
             state.reload_started();
-            eprintln!("[peekaboo] 렌더러 페이지를 다시 불러온다");
+            log_info!("렌더러 페이지를 다시 불러온다");
         }
         Err(e) => {
             state.reload_refused();
-            eprintln!("[peekaboo] 페이지를 다시 불러오지 못했다: {e}");
+            log_warn!("페이지를 다시 불러오지 못했다: {e}");
         }
     }
 }
@@ -277,13 +273,13 @@ pub fn retry_reload(app: &AppHandle) {
             Ok(core) => try_reload(&handle, &core),
             Err(e) => {
                 handle.state::<PreviewState>().reload_refused();
-                eprintln!("[peekaboo] 다시 불러오기를 위해 WebView2 를 얻지 못했다: {e}");
+                log_warn!("다시 불러오기를 위해 WebView2 를 얻지 못했다: {e}");
             }
         }
     });
     if let Err(e) = result {
         app.state::<PreviewState>().reload_refused();
-        eprintln!("[peekaboo] 다시 불러오기를 UI 스레드에 넘기지 못했다: {e}");
+        log_warn!("다시 불러오기를 UI 스레드에 넘기지 못했다: {e}");
     }
 }
 

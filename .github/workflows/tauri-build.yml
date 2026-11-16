@@ -1,0 +1,67 @@
+name: tauri-build
+
+# Tauri 설치본(NSIS) 시험 빌드. 수동 실행 전용이며 릴리스·태그를 만들지 않는다(전환 계획 docs/tauri-migration.md M4).
+# 릴리스 파이프라인(release.yml, nightly-release.yml)과 분리돼 있어 Electron 릴리스에 영향이 없다.
+# 업데이터 서명 키가 없어 서명·latest.json 은 만들지 않는다(M5).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tauri-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: Tauri 설치본 빌드
+    # 헬퍼가 net8.0-windows(CsWin32)라 Windows 러너에서 빌드한다
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Node 설정
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: .NET 설정
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Rust 툴체인 설정
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          # build.yml 과 같은 버전으로 맞춘다. 올릴 때는 두 곳을 함께 바꾼다.
+          toolchain: 1.100.0
+
+      - name: Rust 캐시
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      # Tauri 빌드에는 Electron 바이너리가 필요 없어 받지 않는다
+      - name: 의존성 설치
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci
+
+      # helper:build → 헬퍼 복사 → 렌더러 빌드 → tauri build(NSIS, cargo 에 `--locked`) → 설치본 이름 변경(release-tauri/)
+      - name: 설치본 빌드
+        run: npm run dist:tauri
+
+      - name: 설치본 업로드
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: peekaboo-tauri-installer
+          path: release-tauri/Peekaboo-Setup-*-x64.exe
+          if-no-files-found: error
+          retention-days: 7

@@ -59,11 +59,11 @@ pub fn on_rendered(app: &AppHandle, seq: u64) {
 pub fn finish(app: &AppHandle, result: Result<(), String>, out: &Path) {
     match result {
         Ok(()) => {
-            eprintln!("[peekaboo] captured {}", out.display());
+            log_info!("captured {}", out.display());
             app.exit(0);
         }
         Err(e) => {
-            eprintln!("[peekaboo] 캡처 실패: {e}");
+            log_warn!("캡처 실패: {e}");
             app.exit(1);
         }
     }

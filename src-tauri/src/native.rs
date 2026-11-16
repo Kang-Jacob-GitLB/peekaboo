@@ -107,7 +107,7 @@ impl NativeBridge {
             if s.current == Some(id) {
                 s.current = None;
             }
-            eprintln!("[peekaboo] native #{id}: 헬퍼가 떠 있지 않아 자체 렌더러로 넘긴다");
+            log_info!("native #{id}: 헬퍼가 떠 있지 않아 자체 렌더러로 넘긴다");
             return NativePreviewResult::failed(id, "helper not running");
         }
         match tokio::time::timeout(self.timeout, rx).await {
@@ -115,7 +115,7 @@ impl NativeBridge {
             // 보내는 쪽이 사라짐: 정리 중
             Ok(Err(_)) => NativePreviewResult::failed(id, "cancelled"),
             Err(_) => {
-                eprintln!("[peekaboo] native open #{id} 시간 초과");
+                log_warn!("native open #{id} 시간 초과");
                 self.lock().pending.remove(&id);
                 self.close(id);
                 NativePreviewResult::failed(id, "timeout")
@@ -160,8 +160,8 @@ impl NativeBridge {
             return;
         };
         if status != NativeStatus::Shown {
-            eprintln!(
-                "[peekaboo] native #{id} {status:?}{}",
+            log_info!(
+                "native #{id} {status:?}{}",
                 message
                     .as_deref()
                     .map(|m| format!(": {m}"))

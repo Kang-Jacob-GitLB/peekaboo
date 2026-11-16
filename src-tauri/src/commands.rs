@@ -71,7 +71,7 @@ pub fn rendered(
 ) -> Result<(), String> {
     from_preview(&webview)?;
     if let Some(ms) = state.since_start(seq) {
-        eprintln!("[peekaboo] rendered seq={seq} in {ms}ms since start");
+        log_info!("rendered seq={seq} in {ms}ms since start");
     }
     capture::on_rendered(&app, seq);
     Ok(())

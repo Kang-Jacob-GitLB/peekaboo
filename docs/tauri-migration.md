@@ -27,7 +27,7 @@
 |---|---|
 | 진행 방식 | M0 시험부터. 아래 판정 항목이 대안 두 가지로 풀리지 않으면 보류 |
 | 첫 Tauri 릴리스 | `feat!` → 1.0.0 |
-| WebView2 런타임 | 내려받기 방식(`downloadBootstrapper`, 설치본 크기 증가 없음) |
+| WebView2 런타임 | 설치기 포함(`embedBootstrapper`), 2026-11-16 사용자 결정 — 이유: 기본 NSIS 템플릿이 내려받은 부트스트래퍼를 서명 확인 없이 실행 |
 | Electron → Tauri 업데이트 브리지 | **두지 않음.** 사용자가 직접 설치, 설치기가 옛 버전 제거 |
 | 알림 클릭으로 업데이트 설치 | 포기. 알림은 안내만 하고 트레이 "다시 시작하여 업데이트"로 설치 |
 | 업데이터 서명 키 | GitHub Actions 시크릿 + 오프라인 백업. 키 생성은 저장소 관리자가 직접 |
@@ -143,7 +143,7 @@ isolation pattern 은 쓰지 않는다. 이 앱의 위협은 프런트엔드 의
 | **M1** 렌더러 런타임 분리(Electron 위) | `src/renderer/host/{index,electron}.ts`, 파일 해석을 `host/file-ops/` 로 이동하고 main 의 `readText`/`listArchive` IPC 제거, CSP 대상별 주입, `config.hostPids` 추가. `PeekabooApi` 는 그대로 | 기존 Node 구현과 새 렌더러 구현의 출력 JSON 비교(`node --test`), 포맷별 캡처 전후 비교 |
 | **M2** Tauri 골격 | `src-tauri/`, `vite.tauri.config.ts`(pdfjs 자산 플러그인 공용화), `host/tauri.ts`, 창 생성·표시, `peek` Range, `list_dir`/`file_info`, 디버그 캡처 | `cargo test`(Range 파서, URL 왕복, isAllowed), Electron/Tauri 캡처 나란히 비교, 영상 seek·100MB PDF·UNC 실측 |
 | **M3** 헬퍼·창 동작 | supervisor·native bridge, `PreviewWindow` 상태 기계, 복사 2종, FrameNavigationStarting, ProcessFailed, 가속키 끄기 | GUI 체크리스트(사용자가 PC 를 쓰지 않을 때만), `shown in`/`rendered` 지연을 Electron 과 비교 |
-| **M4** 트레이·설정·패키징 | 트레이, 설정, Run 키, 로그, single-instance, `externalBin`, NSIS `currentUser`, `release.yml` 에 수동 실행 전용 `build-tauri` 잡(발행 안 함) | 깨끗한 계정에 아티팩트 설치 |
+| **M4** 트레이·설정·패키징 | 트레이, 설정, Run 키, 로그, single-instance, `externalBin`, NSIS `currentUser`, 별도 수동 워크플로 `tauri-build.yml`(릴리스 파이프라인과 분리, 발행 안 함) | 깨끗한 계정에 아티팩트 설치 |
 | **M5** 업데이터·옛 버전 제거 | `tauri-plugin-updater`, `src-tauri/windows/hooks.nsh`(6절), `latest.json` 생성, 서명 키 시크릿 | 옛 Electron 버전 3개(0.2.0, 중간, 최신) 위에 Tauri 설치본 설치 리허설, Tauri → Tauri 업데이트는 테스트 저장소에서 |
 | **M6** 베타 | 프리릴리스 태그를 수동 발행, 테스터가 직접 설치(Electron 사용자는 `allowPrerelease=false` 라 받지 않음, `updater.ts:54`) | 1~2주 실사용: 포커스 회귀, Office 핸들러, 메모리 |
 | **M7** 전환 | `feat!: Tauri 2 로 전환`. `release.yml` 기본 빌드를 Tauri 로, README·CLAUDE.md 갱신 | 사람이 지켜보는 시간에 `gh workflow run nightly-release.yml` |

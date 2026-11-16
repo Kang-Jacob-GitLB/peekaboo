@@ -13,8 +13,14 @@ Windows 탐색기에서 파일 선택 후 Space 로 미리보기를 띄우는 �
   trimmed single-file `peekaboo-helper.exe` 로 publish 된다. 새 Win32 API 는 `NativeMethods.txt` 에 추가한다.
 - `src/main/` — Electron main. 헬퍼 감시(`helper-supervisor.ts`), 미리보기 창(`preview-window.ts`),
   `peek://` 프로토콜과 요청 차단(`protocol.ts`), 트레이, 자동 업데이트(`updater.ts`).
-- `src-tauri/` — Tauri 2 호스트(Electron 대체 작업 중, `docs/tauri-migration.md`). `peek.rs`(프로토콜), `preview.rs`(창), `commands.rs`(렌더러 커맨드, ACL 은 `build.rs`·`capabilities/`).
+- `src-tauri/` — Tauri 2 호스트(Electron 대체 작업 중, [docs/tauri-migration.md](docs/tauri-migration.md)). 아직 릴리스에는 쓰이지 않는다.
+  `peek.rs`(프로토콜), `preview.rs`(창), `commands.rs`(렌더러 커맨드, ACL 은 `build.rs`·`capabilities/`).
   렌더러 어댑터는 `src/renderer/host/tauri.ts`, 빌드는 `vite.tauri.config.ts`(`npm run build:web:tauri`).
+  트레이(`tray.rs`)·설정(`settings.rs`)·시작 시 실행 Run 키(`startup.rs`)·로그(`logger.rs`)·데이터 폴더(`appdata.rs`)는 Electron `src/main/` 의 `tray.ts`·`settings.ts`·`logger.ts` 와 의미가 같다(Run 키·데이터 폴더는 `settings.ts`·`logger.ts` 에서 옮겨 왔다).
+  **디버그 빌드의 데이터 폴더는 `%APPDATA%\Peekaboo-dev`** 이고 시작 시 실행 메뉴는 꺼져 있다 — 설치된 Peekaboo 의 `settings.json`·로그·Run 값을 개발 중에 읽거나 쓰지 않는다.
+  상주 모드(환경 변수 없는 실행)는 트레이를 만들므로 시험은 순수 함수 테스트 또는 `PEEKABOO_PREVIEW`+`PEEKABOO_OFFSCREEN=1` 로 한다.
+  설치본은 `npm run dist:tauri`(헬퍼를 `src-tauri/binaries/` 로 복사 → `tauri build` → `release-tauri/`). `externalBin` 은 `tauri.bundle.conf.json` 에만 두어 일반 `cargo` 빌드가 헬퍼 없이도 되게 한다.
+  설치본의 exe 는 `mainBinaryName` 으로 `Peekaboo.exe`(Electron 과 같은 이름)가 되고, 일반 `cargo` 빌드의 산출물은 `peekaboo.exe` 다. NSIS 훅은 `src-tauri/windows/hooks.nsh`.
 - `src/renderer/plugins/` — 포맷별 렌더러. `PreviewPlugin` 을 구현한 모듈 하나 + `registry.ts` 한 줄로 새 포맷을 추가한다.
   `registry.ts` 의 순서가 곧 우선순위다.
 - `src/renderer/host/` — 렌더러 ↔ 호스트 어댑터(`createHost()`). 플러그인은 `window.peekaboo` 대신 `ctx.host` 를 쓴다.
